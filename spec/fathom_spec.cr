@@ -10,18 +10,41 @@ private def detect(text, encoding)
   Fathom.detect(text.encode(encoding))
 end
 
+private struct MockAsciiXorProber
+  include Fathom::Prober
+
+  def probe(bytes : Bytes, stats : Fathom::ByteStats) : Fathom::Match?
+    return nil if stats.high_bytes == 0
+    Fathom::Match.new("X-CUSTOM-8BIT", 0.99)
+  end
+end
+
 describe Fathom do
   it "trusts a BOM" do
     Fathom.detect(Bytes[0xEF, 0xBB, 0xBF, 0x41]).should eq "UTF-8"
     Fathom.detect(Bytes[0xFF, 0xFE, 0x41, 0x00]).should eq "UTF-16LE"
     Fathom.detect(Bytes[0xFE, 0xFF, 0x00, 0x41]).should eq "UTF-16BE"
     Fathom.detect(Bytes[0xFF, 0xFE, 0x00, 0x00, 0x41, 0x00, 0x00, 0x00]).should eq "UTF-32LE"
+    Fathom.detect(Bytes[0x00, 0x00, 0xFE, 0xFF, 0x00, 0x00, 0x00, 0x41]).should eq "UTF-32BE"
   end
 
   it "detects UTF-8, ASCII and empty input" do
     Fathom.detect(RU.to_slice).should eq "UTF-8"
     Fathom.detect("plain ascii".to_slice).should eq "UTF-8"
+    Fathom.detect(Bytes[0x41]).should eq "UTF-8"
     Fathom.detect(Bytes.empty).should eq "UTF-8"
+  end
+
+  it "detects NUL-terminated UTF-8 strings as UTF-8" do
+    Fathom.detect("hello\0".to_slice).should eq "UTF-8"
+    Fathom.detect("Привет мир\0".to_slice).should eq "UTF-8"
+    Fathom.detect("hello\0world\0".to_slice).should eq "UTF-8"
+  end
+
+  it "handles 1-byte and 2-byte non-UTF-8 inputs safely" do
+    Fathom.detect(Bytes[0x00, 0xFF]).should be_nil
+    Fathom.detect(Bytes[0xFF]).should_not be_nil
+    Fathom.detect(Bytes[0xFF]).should_not eq "UTF-8"
   end
 
   it "accepts UTF-8 cut in the middle of a character" do
@@ -30,8 +53,25 @@ describe Fathom do
     Fathom.detect("Привет".to_slice[0, 5]).should eq "UTF-8"
   end
 
+  it "does not misdetect single trailing Latin-1/Windows-1252 high byte as truncated UTF-8" do
+    detect("café", "WINDOWS-1252").should eq "WINDOWS-1252"
+  end
+
+  it "rejects invalid trailing bytes after ASCII as UTF-8" do
+    Fathom.detect(Bytes[0x61, 0x62, 0x63, 0xC0]).should_not eq "UTF-8"
+    Fathom.detect(Bytes[0x61, 0x62, 0x63, 0xFF]).should_not eq "UTF-8"
+  end
+
+  it "detects BOM-less UTF-16LE and UTF-16BE" do
+    Fathom.detect("Hello, world! Testing UTF-16 without BOM.".encode("UTF-16LE")).should eq "UTF-16LE"
+    Fathom.detect("Hello, world! Testing UTF-16 without BOM.".encode("UTF-16BE")).should eq "UTF-16BE"
+    Fathom.detect("Привіт — hello world in UTF-16LE!".encode("UTF-16LE")).should eq "UTF-16LE"
+    Fathom.detect("Привіт — hello world in UTF-16BE!".encode("UTF-16BE")).should eq "UTF-16BE"
+  end
+
   it "returns nil for binary data" do
     Fathom.detect(Bytes[0x00, 0x9F, 0x92, 0x00, 0xFF, 0x10]).should be_nil
+    Fathom.detect(Bytes[0x01, 0x02, 0x03, 0x04, 0x7F, 0x10, 0x41, 0x42]).should be_nil
   end
 
   {% for enc in %w[WINDOWS-1251 KOI8-R ISO-8859-5 IBM866] %}
@@ -55,5 +95,86 @@ describe Fathom do
     detect(FR, "WINDOWS-1252").should eq "WINDOWS-1252"
     detect(DE, "WINDOWS-1252").should eq "WINDOWS-1252"
     detect(EN, "WINDOWS-1252").should eq "WINDOWS-1252"
+  end
+
+  describe ".match" do
+    it "returns structured Match metadata with BOM flag and confidence" do
+      bom_match = Fathom.match(Bytes[0xEF, 0xBB, 0xBF, 0x41]).not_nil!
+      bom_match.encoding.should eq "UTF-8"
+      bom_match.confidence.should eq 1.0
+      bom_match.bom?.should be_true
+
+      win_match = Fathom.match(RU.encode("WINDOWS-1251")).not_nil!
+      win_match.encoding.should eq "WINDOWS-1251"
+      win_match.confidence.should be > 0.5
+      win_match.confidence.should be <= 1.0
+      win_match.bom?.should be_false
+    end
+
+    it "compares Match instances by value equality across all fields" do
+      a = Fathom::Match.new("KOI8-R", 0.5)
+      b = Fathom::Match.new("WINDOWS-1251", 0.5)
+      c = Fathom::Match.new("KOI8-R", 0.5)
+      d = Fathom::Match.new("UTF-8", 1.0, bom: true)
+      e = Fathom::Match.new("UTF-8", 1.0, bom: false)
+
+      a.should_not eq b
+      a.should eq c
+      d.should_not eq e
+    end
+  end
+
+  describe ".detect_all" do
+    it "returns candidates sorted by descending confidence" do
+      matches = Fathom.detect_all(RU.encode("WINDOWS-1251"))
+      matches.should_not be_empty
+      matches.first.encoding.should eq "WINDOWS-1251"
+      matches.each_cons(2) do |(a, b)|
+        a.confidence.should be >= b.confidence
+      end
+    end
+  end
+
+  describe "IO streaming" do
+    it "detects and matches directly from an IO" do
+      payload = UK.encode("KOI8-U")
+      io = IO::Memory.new(payload)
+      Fathom.detect(io).should eq "KOI8-U"
+
+      io.rewind
+      m = Fathom.match(io).not_nil!
+      m.encoding.should eq "KOI8-U"
+      m.bom?.should be_false
+    end
+
+    it "reads at most sample_size bytes from an IO" do
+      payload = ("Привет, мир! " * 200).encode("WINDOWS-1251")
+      io = IO::Memory.new(payload)
+      detector = Fathom::Detector.new(sample_size: 128)
+      detector.detect(io).should eq "WINDOWS-1251"
+      io.pos.should eq 128
+    end
+
+    it "handles IOs larger than the stack buffer" do
+      payload = ("Привет, мир! " * 500).encode("WINDOWS-1251")
+      io = IO::Memory.new(payload)
+      Fathom.detect(io).should eq "WINDOWS-1251"
+      io.pos.should eq payload.size
+    end
+  end
+
+  describe Fathom::Detector do
+    it "validates sample_size" do
+      expect_raises(ArgumentError) do
+        Fathom::Detector.new(sample_size: 0)
+      end
+    end
+
+    it "supports custom probers" do
+      detector = Fathom::Detector.new(probers: [MockAsciiXorProber.new] of Fathom::Prober)
+      m = detector.match("café".encode("WINDOWS-1252")).not_nil!
+      m.encoding.should eq "X-CUSTOM-8BIT"
+      m.confidence.should eq 0.99
+    end
   end
 end
