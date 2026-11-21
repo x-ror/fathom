@@ -2,8 +2,16 @@
 /lib/
 /bin/
 /.shards/
+/.crystal/
 *.dwarf
 
 # Libraries don't need dependency lock
 # Dependencies will be locked in applications that use them
 /shard.lock
+
+# OS & editor files
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/

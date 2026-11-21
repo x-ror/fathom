@@ -18,7 +18,7 @@ module Fathom
   }
 
   # Letter frequency in percent for Russian, with Ukrainian and Belarusian extras.
-  # ponytail: hand-entered unigram table; replace with bigram models trained
+  # TODO: hand-entered unigram table; replace with bigram models trained
   # from a corpus when short inputs or more languages need better accuracy.
   CYRILLIC_FREQ = {
     'о' => 10.97, 'е' => 8.45, 'а' => 8.01, 'и' => 7.35, 'н' => 6.70, 'т' => 6.26,
