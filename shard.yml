@@ -1,0 +1,10 @@
+name: fathom
+version: 0.1.0
+
+authors:
+  - x_ror <16686943+x-ror@users.noreply.github.com>
+
+crystal: '>= 1.22.3'
+
+license: MIT
+description: Charset / encoding detection in pure Crystal
