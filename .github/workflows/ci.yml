@@ -50,8 +50,18 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: crystal tool format --check
 
+      - name: Lint
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          shards install
+          crystal build -o bin/ameba lib/ameba/bin/ameba.cr
+          bin/ameba
+
       - name: Run specs
         run: crystal spec
+
+      - name: Type-check benchmark
+        run: crystal build --no-codegen bench/benchmark.cr
 
       - name: Build docs
         if: matrix.os == 'ubuntu-latest'

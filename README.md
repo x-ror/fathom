@@ -114,6 +114,8 @@ Baseline on `corpus/`: 27 Wikipedia articles in 9 languages (sources and license
 
 ```sh
 crystal tool format --check
+shards install && crystal build -o bin/ameba lib/ameba/bin/ameba.cr  # once
+bin/ameba
 crystal spec
 crystal docs
 crystal run tools/train_models.cr -- --fetch        # train bigram models from Wikipedia

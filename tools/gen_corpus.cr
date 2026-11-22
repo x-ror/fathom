@@ -30,12 +30,12 @@ ARTICLES = {
 
 # encoding => languages encoded into it.
 TARGETS = {
-  "WINDOWS-1251" => %w(ru uk be),
-  "KOI8-R"       => %w(ru),
-  "KOI8-U"       => %w(uk),
-  "ISO-8859-5"   => %w(ru uk),
-  "IBM866"       => %w(ru),
-  "WINDOWS-1252" => %w(de fr es it pt en),
+  "WINDOWS-1251" => %w[ru uk be],
+  "KOI8-R"       => %w[ru],
+  "KOI8-U"       => %w[uk],
+  "ISO-8859-5"   => %w[ru uk],
+  "IBM866"       => %w[ru],
+  "WINDOWS-1252" => %w[de fr es it pt en],
 }
 
 # ASCII stand-ins for punctuation that legacy Cyrillic code pages cannot encode.
@@ -54,7 +54,7 @@ def fetch(lang : String, title : String) : String
     break unless res.status_code == 429
     wait = res.headers["Retry-After"]?.try(&.to_i?) || wait * 2
   end
-  res = res.not_nil!
+  res = res || raise "#{lang}:#{title}: no response"
   raise "#{lang}:#{title}: HTTP #{res.status_code}" unless res.success?
   extract = JSON.parse(res.body)["query"]["pages"][0]["extract"]?.try(&.as_s)
   raise "#{lang}:#{title}: no extract" unless extract
@@ -75,11 +75,9 @@ def encode(text : String, encoding : String) : Bytes
   encoding = Fathom::Encoding.iconv_name(encoding)
   io = IO::Memory.new
   text.each_char do |c|
-    begin
-      io.write c.to_s.encode(encoding)
-    rescue ArgumentError
-      FALLBACK[c]?.try { |s| io.write s.encode(encoding) } # otherwise drop (e.g. combining stress marks)
-    end
+    io.write c.to_s.encode(encoding)
+  rescue ArgumentError
+    FALLBACK[c]?.try { |s| io.write s.encode(encoding) } # otherwise drop (e.g. combining stress marks)
   end
   io.to_slice
 end
@@ -105,10 +103,10 @@ if ARGV.includes?("--fetch")
   File.write(File.join(CORPUS, "SOURCES.md"), sources)
 end
 
-sources = Dir.glob(File.join(CORPUS, "UTF-8", "*.txt")).reject(&.ends_with?("_bom.txt")).sort
+sources = Dir.glob(File.join(CORPUS, "UTF-8", "*.txt")).reject(&.ends_with?("_bom.txt")).sort!
 abort "no sources in corpus/UTF-8; run with --fetch" if sources.empty?
 Dir.glob(File.join(FIXTURE, "*", "*.txt")).each { |f| File.delete(f) }
-Dir.glob(File.join(CORPUS, "*", "*.txt")).each { |f| File.delete(f) unless f.starts_with?(File.join(CORPUS, "UTF-8", "")) && !f.ends_with?("_bom.txt") }
+Dir.glob(File.join(CORPUS, "*", "*.txt")).each { |f| File.delete(f) if !f.starts_with?(File.join(CORPUS, "UTF-8", "")) || f.ends_with?("_bom.txt") }
 
 sources.each do |path|
   name = File.basename(path)

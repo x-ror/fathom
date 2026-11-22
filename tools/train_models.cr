@@ -65,7 +65,7 @@ def fetch(lang : String, title : String) : String
     break unless res.status_code == 429
     wait = res.headers["Retry-After"]?.try(&.to_i?) || wait * 2
   end
-  res = res.not_nil!
+  res = res || raise "#{lang}:#{title}: no response"
   raise "#{lang}:#{title}: HTTP #{res.status_code}" unless res.success?
   extract = JSON.parse(res.body)["query"]["pages"][0]["extract"]?.try(&.as_s)
   raise "#{lang}:#{title}: no extract" unless extract
@@ -154,7 +154,7 @@ if ARGV.includes?("--fetch")
   File.write(File.join(MODELS_DIR, "SOURCES.md"), sources)
 end
 
-%w(ru uk be).each do |lang|
+%w[ru uk be].each do |lang|
   alphabet = ALPHABETS[lang]
   files = Dir.glob(File.join(SOURCES_DIR, lang, "*.txt")).sort
   abort "no training files in #{SOURCES_DIR}/#{lang}; run with --fetch" if files.empty?
@@ -164,7 +164,7 @@ end
 end
 
 # Western model balances bigram probabilities equally across fr, de, es, it, pt, en.
-western_langs = %w(fr de es it pt en)
+western_langs = %w[fr de es it pt en]
 western_alpha = ALPHABETS["western"]
 per_lang = western_langs.map do |lang|
   files = Dir.glob(File.join(SOURCES_DIR, lang, "*.txt")).sort

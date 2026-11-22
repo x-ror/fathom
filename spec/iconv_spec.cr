@@ -26,7 +26,7 @@ describe "Cross-platform iconv compatibility" do
       sample_file = Dir.children(sample_dir).sort.first
       bytes = File.open(File.join(sample_dir, sample_file), "rb", &.getb_to_end)
 
-      match = Fathom.match(bytes).not_nil!
+      match = Fathom.match(bytes).should_not be_nil
       match.encoding.should eq encoding
       match.iconv_name.should eq iconv_name
 
@@ -37,9 +37,9 @@ describe "Cross-platform iconv compatibility" do
         expect_raises(ArgumentError) { Fathom.decode(bytes) }
       else
         direct = String.new(payload, iconv_name)
-        decoded = Fathom.decode(bytes)
+        decoded = Fathom.decode(bytes).should_not be_nil
         decoded.should eq direct
-        decoded.not_nil!.valid_encoding?.should be_true
+        decoded.valid_encoding?.should be_true
       end
     end
   end

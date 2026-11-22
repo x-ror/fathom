@@ -53,10 +53,12 @@ git config core.hooksPath .githooks
 
 ## Development Checks
 
-Before opening a pull request, ensure formatting, specs, and docs pass:
+Before opening a pull request, ensure formatting, lint, specs, and docs pass:
 
 ```sh
 crystal tool format --check
+shards install && crystal build -o bin/ameba lib/ameba/bin/ameba.cr  # once
+bin/ameba
 crystal spec
 crystal docs
 ```

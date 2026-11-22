@@ -60,7 +60,7 @@ describe "Accuracy regression gate" do
     end
 
     # Every >=256B and full sample in the CI gate must be detected accurately.
-    results.select { |r| r[:size_limit].nil? || r[:size_limit].not_nil! >= 256 }.each do |r|
+    results.select { |r| (r[:size_limit] || Int32::MAX) >= 256 }.each do |r|
       r[:actual].should eq r[:expected]
     end
   end
