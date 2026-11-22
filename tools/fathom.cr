@@ -128,8 +128,15 @@ module FathomCLI
         puts({
           file:    label,
           bytes:   bytes.size,
-          matches: matches.map { |m| # ameba:disable Style/MultilineCurlyBlock
- {encoding: m.encoding, iconv_name: m.iconv_name, confidence: m.confidence.round(4), bom: m.bom?} },
+          matches: matches.map do |m|
+            {
+              encoding:   m.encoding,
+              iconv_name: m.iconv_name,
+              confidence: m.confidence.round(4),
+              bom:        m.bom?,
+              language:   m.language,
+            }
+          end,
         }.to_json)
       else
         puts "#{label} (#{bytes.size} bytes):"
@@ -138,7 +145,8 @@ module FathomCLI
         else
           matches.each do |m|
             bom_note = m.bom? ? " [BOM]" : ""
-            puts "  #{m.encoding.ljust(14)} conf=#{m.confidence.round(4)}#{bom_note} (iconv: #{m.iconv_name})"
+            lang_note = m.language ? ", lang=#{m.language}" : ""
+            puts "  #{m.encoding.ljust(14)} conf=#{m.confidence.round(4)}#{bom_note}#{lang_note} (iconv: #{m.iconv_name})"
           end
         end
       end
@@ -152,11 +160,13 @@ module FathomCLI
           iconv_name: m.try(&.iconv_name),
           confidence: m.try(&.confidence.round(4)),
           bom:        m.try(&.bom?),
+          language:   m.try(&.language),
         }.to_json)
       else
         if m
           bom_note = m.bom? ? " [BOM]" : ""
-          puts "#{label}: #{m.encoding} (confidence=#{m.confidence.round(4)}#{bom_note}, iconv=#{m.iconv_name})"
+          lang_note = m.language ? ", lang=#{m.language}" : ""
+          puts "#{label}: #{m.encoding} (confidence=#{m.confidence.round(4)}#{bom_note}#{lang_note}, iconv=#{m.iconv_name})"
         else
           puts "#{label}: <unknown>"
         end
@@ -214,6 +224,16 @@ module FathomCLI
       if compare_results && compare_tool
         puts
         print_corpus_report(compare_tool.upcase, compare_results)
+        supported = compare_results.compact_map(&.actual).to_set
+        shared_fathom = fathom_results.select { |r| supported.includes?(r.expected) }
+        shared_compare = compare_results.select { |r| supported.includes?(r.expected) }
+        unless shared_fathom.empty?
+          shared_count = shared_fathom.map(&.expected).uniq!.size
+          puts
+          puts "=== Shared Encodings Only (#{shared_count} corpus encodings output by #{compare_tool.upcase}) ==="
+          print_summary_line("Fathom", shared_fathom)
+          print_summary_line(compare_tool.upcase, shared_compare)
+        end
       end
     end
   end
@@ -263,12 +283,32 @@ module FathomCLI
     {by_enc, by_size}
   end
 
+  private def self.print_summary_line(label : String, results : Array(EvalResult))
+    correct = results.count { |r| r.expected == r.actual }
+    acc = results.empty? ? 0.0 : (correct.to_f64 / results.size) * 100.0
+    sb = results.reject(&.expected.starts_with?("UTF"))
+    sb_note = if !sb.empty? && sb.size < results.size
+                sb_ok = sb.count { |r| r.expected == r.actual }
+                sb_acc = (sb_ok.to_f64 / sb.size) * 100.0
+                " (single-byte: #{sb_ok}/#{sb.size} = #{sb_acc.round(2)}%)"
+              else
+                ""
+              end
+    puts "#{label}: #{correct}/#{results.size} = #{acc.round(2)}%#{sb_note}"
+  end
+
   private def self.print_corpus_report(name : String, results : Array(EvalResult))
     by_enc, by_size = compute_metrics(results)
     total_correct = results.count { |r| r.expected == r.actual }
     total_acc = results.empty? ? 0.0 : (total_correct.to_f64 / results.size) * 100.0
 
     puts "=== #{name} Corpus Accuracy (#{total_correct}/#{results.size} = #{total_acc.round(2)}%) ==="
+    sb = results.reject(&.expected.starts_with?("UTF"))
+    if !sb.empty? && sb.size < results.size
+      sb_correct = sb.count { |r| r.expected == r.actual }
+      sb_acc = (sb_correct.to_f64 / sb.size) * 100.0
+      puts "Single-byte only: #{sb_correct}/#{sb.size} = #{sb_acc.round(2)}%"
+    end
     puts
     puts "| Encoding | Support | Precision | Recall | F1 |"
     puts "| --- | ---: | ---: | ---: | ---: |"
