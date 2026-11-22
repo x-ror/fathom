@@ -110,8 +110,7 @@ module Fathom
         end
       end
 
-      return nil if invalid_bytes == 0 || valid_sequences < 4
-      return nil unless valid_sequences >= invalid_bytes * 10
+      return nil if invalid_bytes == 0 || valid_sequences < invalid_bytes * 10
 
       ratio = valid_sequences.to_f64 / (valid_sequences + invalid_bytes * 4).to_f64
       confidence = (0.55 + 0.39 * ratio).clamp(0.5, 0.94)

@@ -69,7 +69,7 @@ detector.match(bytes)
 
 - UTF-8, UTF-16LE/BE, and UTF-32LE/BE by BOM
 - UTF-8 and ASCII without a BOM (reported as `UTF-8`, including truncated trailing multi-byte sequences and NUL-terminated strings)
-- Slightly corrupted UTF-8 with lowered confidence when valid multi-byte UTF-8 sequences outnumber invalid high bytes (`>= 10:1`, minimum 4 sequences)
+- Slightly corrupted UTF-8 with lowered confidence when valid multi-byte UTF-8 sequences outnumber invalid high bytes (`>= 10:1`)
 - BOM-less `UTF-16LE` and `UTF-16BE` (for ASCII/mixed-null payloads)
 - Cyrillic: `WINDOWS-1251`, `KOI8-R`, `KOI8-U`, `ISO-8859-5`, `IBM866`
 - Western European: `WINDOWS-1252`
