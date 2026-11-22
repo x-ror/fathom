@@ -1,2 +1,4 @@
 * text=auto eol=lf
 src/fathom/tables.cr linguist-generated=true
+corpus/** -text
+spec/fixtures/** -text
