@@ -7,10 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `Fathom::SingleByte::LanguageModel`, plus the `ORDER_SIZE` and `SCORE_SCALE` constants.
+- `Fathom::UTF.incomplete_tail_size`.
+- `ameba` linting (development dependency, `.ameba.yml`, CI step).
+
 ### Changed
+- **Breaking:** `Fathom::SingleByte::Table.new` now takes `(encoding, model : LanguageModel, requires_high_letters, byte_map, handicap = 0)`.
+- Single-byte confidence values are on a new scale (`0.25..0.99`); re-check any tuned `min_confidence`.
 - Replaced unigram single-byte scoring with quantized `64x64` language-level bigram models (`Fathom::SingleByte::LanguageModel` and `Table`) trained via `tools/train_models.cr` on disjoint Wikipedia articles (`ru`, `uk`, `be`, and balanced `western`) and projected into `src/fathom/tables.cr` by `tools/gen_tables.cr`.
 - `Fathom.detect_all` and `Fathom::Detector#detect_all` now deduplicate candidates by encoding, keeping the highest confidence per encoding.
-- Corpus accuracy improved from `373/374` (`99.73%`) to `374/374` (`100.0%`) on `64B..full` (and `529/534` → `530/534` on `16B..full`); raised `KOI8-R` precision and `KOI8-U` recall CI gate floors in `spec/accuracy_spec.cr` to `1.0`.
+- Corpus accuracy improved from `373/374` (`99.73%`) to `374/374` (`100.0%`) on `64B..full` (`16B..full` stays at `529/534`: the `KOI8-U` handicap that fixes short Russian `KOI8-R` words costs two 16–32-byte Ukrainian `KOI8-U` prefixes); raised `KOI8-R` precision and `KOI8-U` recall CI gate floors in `spec/accuracy_spec.cr` to `1.0`.
+
+### Fixed
+- Cyrillic words embedded in ASCII text (log lines, CSV with English headers) are no longer detected as `WINDOWS-1252`: the Western prober rejects input whose non-ASCII bytes mostly sit in runs of three or more.
+- Short `IBM866` words (`хорошо`, `пароль`) are no longer detected as `WINDOWS-1251`: a non-ASCII letter now counts as isolated unless it touches another non-ASCII letter, so symbols such as `®` cannot act as word separators.
+- Short `KOI8-R` text without Ukrainian-only letters (`да`, `Цена: 100 руб.`) is no longer labelled `KOI8-U`: the `KOI8-U` prober carries a small fixed handicap (`Table#handicap`) that fades as the input grows.
+- `WINDOWS-1252` input whose only non-ASCII bytes are symbols (`100 €`, `§ 3`) is detected again instead of returning `nil`.
+- UTF-8 input whose first multi-byte character is cut by the sample boundary is no longer rejected.
+- `Fathom.decode` no longer raises on input that detection accepts with an incomplete final character (cut UTF-8 sequence, odd trailing UTF-16 byte, lone high surrogate); the partial character is dropped.
+- Buffers that are more than 25% NUL bytes (all-NUL data, BOM-less UTF-32) are treated as binary instead of `UTF-8`.
+- `OverflowError` in tolerant UTF-8 probing with very large custom `sample_size` values.
 
 ## [0.2.0] - 2026-11-22
 
