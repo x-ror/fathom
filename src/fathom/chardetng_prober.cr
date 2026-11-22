@@ -38,14 +38,15 @@ module Fathom
         detector = Detector.new(extended: true)
         detector.feed(bytes, last: true)
         guess, max = detector.result
+        hebrew_ok = detector.windows_1255_decodable?
 
         # Best score per supported canonical encoding, in candidate order.
-        entries = StaticArray({String, Int64}, 26).new({"", 0_i64})
+        entries = StaticArray({String, Int64}, Detector::MAX_SCORES).new({"", 0_i64})
         count = 0
         ptr = entries.to_unsafe
 
         detector.each_score do |name, score|
-          encoding = Encoding.canonical_name(name)
+          encoding = fold(name, hebrew_ok)
           next unless Encoding::SUPPORTED.includes?(encoding)
 
           found = false
@@ -66,7 +67,7 @@ module Fathom
         end
         return if count == 0
 
-        winner = Encoding.canonical_name(guess)
+        winner = fold(guess, hebrew_ok)
         winner_score = score_for(ptr, count, winner)
         if max > 0 && winner_score
           max = winner_score if winner_score > max
@@ -119,6 +120,15 @@ module Fathom
           end
           i += 1
         end
+      end
+
+      # Canonical name for a chardetng guess. Visual Hebrew (ISO-8859-8) folds to
+      # WINDOWS-1255 only when the input is valid windows-1255: the two differ at
+      # 0xDF (ISO-8859-8 "‗" is undefined in windows-1255), so otherwise it stays
+      # ISO-8859-8, which Fathom doesn't report, and the next candidate wins.
+      private def fold(name : String, hebrew_ok : Bool) : String
+        return (hebrew_ok ? "WINDOWS-1255" : name) if name == ISO_8859_8_DATA.encoding
+        Encoding.canonical_name(name)
       end
 
       private def score_for(ptr : Pointer({String, Int64}), count : Int32, encoding : String) : Int64?

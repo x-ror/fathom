@@ -793,10 +793,22 @@ module Fathom
     # detector.feed(bytes, last: true)
     # detector.guess # => "WINDOWS-1252"
     # ```
+    #
+    # NOTE: `Detector` is a value type (so detection doesn't allocate). Keep it
+    # in a local variable: a copy passed to a method or stored elsewhere has its
+    # own state, and feeding the copy doesn't update the original.
+    # :nodoc:
     struct Detector
       # Prior against the rare extension encodings, so short ambiguous input
       # stays with the common ones (Fathom extension).
       RARE_HANDICAP = 100_i64
+
+      # Most candidates a detector holds (upstream minus CJK, plus Fathom's extensions).
+      CAPACITY = 25
+
+      # Most entries `#each_score` can yield: every candidate plus visual Hebrew
+      # (`CAPACITY + 1`, spelled out because it's used as a type argument).
+      MAX_SCORES = 26
 
       private WIN1252_IDX  = 0
       private WIN1250_IDX  = 2
@@ -806,7 +818,7 @@ module Fathom
       @utf8 = Utf8Candidate.new
       @visual = Candidate.visual(ISO_8859_8_DATA)
       # Upstream candidate order (minus CJK); ties go to the earlier candidate.
-      @normal : StaticArray(Candidate, 25)
+      @normal : StaticArray(Candidate, Detector::CAPACITY)
       @normal_len : Int32
       @non_ascii_seen = 0_i64
       @esc_seen = false
@@ -819,7 +831,7 @@ module Fathom
       getter non_ascii_seen : Int64
 
       def initialize(extended : Bool = false)
-        @normal = uninitialized StaticArray(Candidate, 25)
+        @normal = uninitialized StaticArray(Candidate, Detector::CAPACITY)
         n = @normal.to_unsafe
         n[0] = Candidate.latin(WINDOWS_1252_DATA, windows_1252: true)
         n[1] = Candidate.non_latin_cased(WINDOWS_1251_DATA)
@@ -939,6 +951,11 @@ module Fathom
         if score = @visual.guess_score(twin_plausible)
           yield ISO_8859_8_DATA.encoding, score
         end
+      end
+
+      # Whether every byte fed so far is defined in windows-1255.
+      def windows_1255_decodable? : Bool
+        !(@normal.to_unsafe + LOGICAL_IDX).value.score.nil?
       end
 
       @[AlwaysInline]

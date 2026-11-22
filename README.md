@@ -85,7 +85,7 @@ Not yet built in: CJK (can be plugged in via `Fathom::Prober`).
 ## Labels, Aliases & Platform `iconv` Support
 
 - Canonical encoding labels follow the WHATWG Encoding Standard (uppercase, e.g. `UTF-8`, `WINDOWS-1252`, `IBM866`, `MACINTOSH`).
-- ISO/Windows pairs (`ISO-8859-1`/`WINDOWS-1252`, `ISO-8859-8`/`WINDOWS-1255`, `ISO-8859-9`/`WINDOWS-1254`, `ISO-8859-11` & `TIS-620`/`WINDOWS-874`, `ISO-8859-13`/`WINDOWS-1257`) collapse to the Windows label via `Fathom::Encoding.canonical_name`, since the Windows variant shares the script codepoints and decodes the ISO input.
+- ISO/Windows pairs differing only in `0x80..0x9F` (`ISO-8859-1`/`WINDOWS-1252`, `ISO-8859-9`/`WINDOWS-1254`, `ISO-8859-11` & `TIS-620`/`WINDOWS-874`, `ISO-8859-13`/`WINDOWS-1257`) collapse to the Windows label via `Fathom::Encoding.canonical_name`, since the Windows variant decodes both. Visual-order Hebrew (`ISO-8859-8`) is reported as `WINDOWS-1255` when it is valid `WINDOWS-1255`.
 - **Tie-breaking on shared bytes**: encodings whose differing codepoints do not appear in a given input score identically and resolve by prober registration order (`WINDOWS-1252` before `IBM850`/`IBM437`/`MACINTOSH`, `WINDOWS-1250` before `ISO-8859-2`, `WINDOWS-1253` before `ISO-8859-7`, `WINDOWS-1256` before `ISO-8859-6`). For example, symbol-only Western strings such as `Copyright ©…` or plain Greek text lacking `'Ά'` (`U+0386`) cannot distinguish those pairs at the byte level.
 - `Fathom::Encoding.iconv_name` (also exposed as `Match#iconv_name`) returns the name to pass to `String.new`, chosen to work on supported platforms:
   - `IBM437` → `CP437`, `IBM850` → `CP850`, `IBM852` → `CP852`, `IBM866` → `CP866`

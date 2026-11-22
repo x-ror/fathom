@@ -47,6 +47,10 @@ describe Fathom::Chardetng do
     Fathom::Chardetng.guess("caf\xC3\xA9".to_slice).should eq "UTF-8"
   end
 
+  it "sizes MAX_SCORES for every candidate plus visual Hebrew" do
+    Fathom::Chardetng::Detector::MAX_SCORES.should eq Fathom::Chardetng::Detector::CAPACITY + 1
+  end
+
   it "raises when fed after the last chunk" do
     detector = Fathom::Chardetng::Detector.new
     detector.feed(Bytes.empty, last: true)
