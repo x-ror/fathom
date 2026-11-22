@@ -26,7 +26,7 @@ This document outlines the planned evolution of **fathom** from `0.1.0` to a sta
 - Add tolerance for slightly corrupted UTF-8 based on the ratio of valid multi-byte UTF-8 sequences to invalid bytes (not raw ASCII+byte ratio), returning `UTF-8` with lowered confidence.
 - Add a lightweight CLI tool under `tools/` (kept out of `shard.yml` `targets` so library consumers do not compile a binary on `shards install`) for inspecting files and driving the accuracy corpus.
 
-## `0.3.0` — Bigram Models
+## `0.3.0` — Bigram Models (Released)
 
 - Language-level bigram models trained on corpora and projected through encoding tables, applied only to existing encodings (Cyrillic + `WINDOWS-1252`) so algorithm changes are isolated from new encoding coverage and measured against the `0.2.0` baseline.
 
