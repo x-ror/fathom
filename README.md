@@ -88,7 +88,7 @@ Not yet built in: CJK (can be plugged in via `Fathom::Prober`).
 - `Fathom::Encoding.iconv_name` (also exposed as `Match#iconv_name`) returns the name to pass to `String.new`, chosen to work on supported platforms:
   - `IBM437` → `CP437`, `IBM850` → `CP850`, `IBM852` → `CP852`, `IBM866` → `CP866`
   - `MACINTOSH` → `MACROMAN` on Windows, `MACINTOSH` elsewhere
-  - `X-MAC-CYRILLIC` → `CP10007` on Windows, `MACCYRILLIC` elsewhere
+  - `X-MAC-CYRILLIC` → `MACCYRILLIC`
   - All other canonical labels are returned as-is
 - Detection is platform-independent: `Fathom.detect` and `Fathom.match` always return canonical labels regardless of host OS. On Alpine Linux (`musl`), `musl`'s built-in `iconv` does not support `IBM852`, `MACINTOSH`, `X-MAC-CYRILLIC`, or `WINDOWS-874`; detection still succeeds, while `Fathom.decode` raises `ArgumentError` just as `String.new` does.
 

@@ -230,9 +230,8 @@ describe Fathom do
       Fathom::Match.new("IBM852", 0.9).iconv_name.should eq "CP852"
       Fathom::Match.new("IBM866", 0.9).iconv_name.should eq "CP866"
       expected_mac = {% if flag?(:win32) %} "MACROMAN" {% else %} "MACINTOSH" {% end %}
-      expected_mac_cyr = {% if flag?(:win32) %} "CP10007" {% else %} "MACCYRILLIC" {% end %}
       Fathom::Match.new("MACINTOSH", 0.9).iconv_name.should eq expected_mac
-      Fathom::Match.new("X-MAC-CYRILLIC", 0.9).iconv_name.should eq expected_mac_cyr
+      Fathom::Match.new("X-MAC-CYRILLIC", 0.9).iconv_name.should eq "MACCYRILLIC"
     end
   end
 

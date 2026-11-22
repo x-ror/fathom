@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - DOS code pages: `IBM437`, `IBM850`, `IBM852`
   - Mac encodings: `MACINTOSH`, `X-MAC-CYRILLIC`
 - Optional `Fathom::Match#language : String?` field reporting the ISO 639-1 language code for single-language probers (`"ru"`, `"uk"`, `"be"`, `"pl"`, `"cs"`, `"hu"`, `"lt"`, `"lv"`, `"el"`, `"tr"`, `"he"`, `"ar"`, `"th"`, or `nil` for shared encodings).
-- WHATWG encoding aliases and `Fathom::Encoding.iconv_name` mappings (`IBM437` → `CP437`, `IBM850` → `CP850`, `IBM852` → `CP852`, `IBM866` → `CP866`, `MACINTOSH`, `X-MAC-CYRILLIC` → `CP10007` on Windows / `MACCYRILLIC` elsewhere).
+- WHATWG encoding aliases and `Fathom::Encoding.iconv_name` mappings (`IBM437` → `CP437`, `IBM850` → `CP850`, `IBM852` → `CP852`, `IBM866` → `CP866`, `MACINTOSH`, `X-MAC-CYRILLIC` → `MACCYRILLIC`).
 - `language` field in `tools/fathom.cr` human-readable and `--json` outputs, plus single-byte-only and shared-encodings ICU comparison summaries in `--corpus`.
 
 ### Changed

@@ -134,16 +134,11 @@ module Fathom
     # Names are chosen to work across glibc, musl, macOS libiconv, and Windows where supported.
     def self.iconv_name(encoding : String) : String
       case canonical = canonical_name(encoding)
-      when "IBM866" then "CP866" # musl knows only "cp866"; the others accept both names
-      when "IBM437" then "CP437" # musl knows only "cp437"; the others accept both names
-      when "IBM850" then "CP850" # musl knows only "cp850"; the others accept both names
-      when "IBM852" then "CP852"
-      when "X-MAC-CYRILLIC"
-        {% if flag?(:win32) %}
-          "CP10007"
-        {% else %}
-          "MACCYRILLIC"
-        {% end %}
+      when "IBM866"         then "CP866" # musl knows only "cp866"; the others accept both names
+      when "IBM437"         then "CP437" # musl knows only "cp437"; the others accept both names
+      when "IBM850"         then "CP850" # musl knows only "cp850"; the others accept both names
+      when "IBM852"         then "CP852"
+      when "X-MAC-CYRILLIC" then "MACCYRILLIC"
       when "MACINTOSH"
         {% if flag?(:win32) %}
           "MACROMAN"
