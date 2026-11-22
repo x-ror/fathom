@@ -60,7 +60,7 @@ end
 detector = Fathom::Detector.new(
   sample_size: 32_768,
   min_confidence: 0.25,
-  probers: Fathom::SingleByte::PROBERS + ([MyProber.new] of Fathom::Prober),
+  probers: Fathom::Detector::DEFAULT_PROBERS + ([MyProber.new] of Fathom::Prober),
 )
 detector.match(bytes)
 ```

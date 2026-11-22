@@ -337,7 +337,8 @@ describe Fathom do
     it "detects WINDOWS-1252 when the only high bytes are symbols" do
       match = Fathom.match("100 €".encode("WINDOWS-1252")).should_not be_nil
       match.encoding.should eq "WINDOWS-1252"
-      match.confidence.should eq 0.25
+      # Neutral evidence (punctuation only) counts as a tie, not as a confident guess.
+      match.confidence.should eq Fathom::Chardetng::Prober::TIE_CONFIDENCE
     end
 
     it "accepts UTF-8 whose first multi-byte character is cut by the sample boundary" do

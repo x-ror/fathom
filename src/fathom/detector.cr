@@ -21,6 +21,9 @@ module Fathom
     # Minimum confidence threshold in `0.0..1.0` for returning prober matches.
     getter min_confidence : Float64
 
+    # Default probers: the built-in single-byte detector (a port of chardetng).
+    DEFAULT_PROBERS = [Chardetng::Prober.new] of Prober
+
     # Probers evaluated for single-byte or custom encodings.
     getter probers : Indexable(Prober)
 
@@ -33,7 +36,7 @@ module Fathom
     def initialize(
       @sample_size : Int32 = DEFAULT_SAMPLE_SIZE,
       @min_confidence : Float64 = DEFAULT_MIN_CONFIDENCE,
-      @probers : Indexable(Prober) = SingleByte::PROBERS,
+      @probers : Indexable(Prober) = DEFAULT_PROBERS,
     )
       raise ArgumentError.new("sample_size must be positive") if @sample_size <= 0
       raise ArgumentError.new("min_confidence must be between 0.0 and 1.0") unless (0.0..1.0).includes?(@min_confidence)
@@ -181,7 +184,7 @@ module Fathom
       end
 
       @probers.each do |prober|
-        if candidate = prober.probe(sample, stats)
+        prober.each_match(sample, stats) do |candidate|
           yield candidate if candidate.confidence >= @min_confidence
         end
       end

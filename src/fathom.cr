@@ -6,6 +6,7 @@ require "./fathom/bom"
 require "./fathom/utf"
 require "./fathom/single_byte"
 require "./fathom/tables"
+require "./fathom/chardetng_prober"
 require "./fathom/detector"
 
 # Pure-Crystal character encoding detection library.
