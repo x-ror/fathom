@@ -13,5 +13,10 @@ module Fathom
     # Creates a new `Match` with the given *encoding*, *confidence*, and *bom* flag.
     def initialize(@encoding : String, @confidence : Float64, @bom : Bool = false)
     end
+
+    # Platform `iconv` encoding name usable with `String.new(bytes, match.iconv_name)`.
+    def iconv_name : String
+      Encoding.iconv_name(@encoding)
+    end
   end
 end

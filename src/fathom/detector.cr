@@ -81,6 +81,37 @@ module Fathom
       with_sample(io) { |sample| detect_all(sample) }
     end
 
+    # Detects the encoding of *bytes*, strips any leading BOM, and decodes the payload
+    # to a UTF-8 `String`. Returns `nil` when *bytes* looks like binary or an unknown encoding.
+    #
+    # The *invalid* option (`nil` or `:skip`) is passed through to `String.new` unchanged.
+    def decode(bytes : Bytes, invalid : Symbol? = nil) : String?
+      m = match(bytes)
+      return nil unless m
+
+      payload = if m.bom?
+                  bom_len = BOM.byte_size(m.encoding)
+                  bytes[bom_len, bytes.size - bom_len]
+                else
+                  bytes
+                end
+
+      String.new(payload, m.iconv_name, invalid: invalid)
+    end
+
+    # Reads *io*, detects its encoding from up to `#sample_size` leading bytes,
+    # strips any leading BOM, and decodes the full stream to a UTF-8 `String`.
+    # Returns `nil` when the stream looks like binary or an unknown encoding.
+    #
+    # NOTE: The whole stream is read into memory; there is no size limit.
+    #
+    # The *invalid* option (`nil` or `:skip`) is passed through to `String.new` unchanged.
+    def decode(io : IO, invalid : Symbol? = nil) : String?
+      buffer = IO::Memory.new
+      IO.copy(io, buffer)
+      decode(buffer.to_slice, invalid: invalid)
+    end
+
     private def each_candidate(bytes : Bytes, & : Match ->)
       if bytes.empty?
         yield Match.new("UTF-8", 1.0)
@@ -113,6 +144,10 @@ module Fathom
       end
 
       return if stats.null_bytes > 0 || stats.likely_binary?
+
+      if tolerant = UTF.probe_tolerant_utf8(sample, stats)
+        yield tolerant if tolerant.confidence >= @min_confidence
+      end
 
       @probers.each do |prober|
         if candidate = prober.probe(sample, stats)

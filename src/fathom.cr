@@ -1,3 +1,4 @@
+require "./fathom/encoding"
 require "./fathom/match"
 require "./fathom/byte_stats"
 require "./fathom/prober"
@@ -50,6 +51,23 @@ module Fathom
   # sorted by descending confidence.
   def self.detect_all(io : IO, sample_size : Int32 = Detector::DEFAULT_SAMPLE_SIZE) : Array(Match)
     detector_for(sample_size).detect_all(io)
+  end
+
+  # Detects the encoding of *bytes*, strips any leading BOM, and decodes the payload
+  # to a UTF-8 `String`, or returns `nil` when unknown.
+  #
+  # The *invalid* option (`nil` or `:skip`) is passed through to `String.new` unchanged.
+  def self.decode(bytes : Bytes, invalid : Symbol? = nil) : String?
+    Detector.default.decode(bytes, invalid: invalid)
+  end
+
+  # Reads *io*, detects its encoding from up to *sample_size* leading bytes,
+  # strips any leading BOM, and decodes the full stream to a UTF-8 `String`,
+  # or returns `nil` when unknown. The whole stream is read into memory.
+  #
+  # The *invalid* option (`nil` or `:skip`) is passed through to `String.new` unchanged.
+  def self.decode(io : IO, sample_size : Int32 = Detector::DEFAULT_SAMPLE_SIZE, invalid : Symbol? = nil) : String?
+    detector_for(sample_size).decode(io, invalid: invalid)
   end
 
   private def self.detector_for(sample_size : Int32) : Detector

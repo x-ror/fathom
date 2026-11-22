@@ -71,6 +71,53 @@ module Fathom
       Match.new(le ? "UTF-16LE" : "UTF-16BE", 0.95)
     end
 
+    # Probes for slightly corrupted UTF-8 based on the ratio of valid multi-byte
+    # UTF-8 sequences to invalid high bytes (ignoring ASCII bytes).
+    def self.probe_tolerant_utf8(bytes : Bytes, stats : ByteStats) : Match?
+      return nil if stats.high_bytes == 0
+
+      size = bytes.size
+      ptr = bytes.to_unsafe
+      valid_sequences = 0
+      invalid_bytes = 0
+      i = 0
+
+      while i < size
+        lead = ptr[i]
+        if lead < 0x80_u8
+          i += 1
+          next
+        end
+
+        seq_len = utf8_sequence_length(lead)
+        if seq_len == 0
+          invalid_bytes += 1
+          i += 1
+        elsif i + seq_len > size
+          tail_len = size - i
+          if valid_utf8_tail?(ptr, i, tail_len, lead)
+            break
+          else
+            invalid_bytes += 1
+            i += 1
+          end
+        elsif valid_utf8_sequence?(ptr, i, seq_len, lead)
+          valid_sequences += 1
+          i += seq_len
+        else
+          invalid_bytes += 1
+          i += 1
+        end
+      end
+
+      return nil if invalid_bytes == 0 || valid_sequences < 4
+      return nil unless valid_sequences >= invalid_bytes * 10
+
+      ratio = valid_sequences.to_f64 / (valid_sequences + invalid_bytes * 4).to_f64
+      confidence = (0.55 + 0.39 * ratio).clamp(0.5, 0.94)
+      Match.new("UTF-8", confidence)
+    end
+
     private def self.utf8_sequence_length(lead : UInt8) : Int32
       case lead
       when 0xC2_u8..0xDF_u8 then 2
@@ -78,6 +125,14 @@ module Fathom
       when 0xF0_u8..0xF4_u8 then 4
       else                       0
       end
+    end
+
+    private def self.valid_utf8_sequence?(ptr : Pointer(UInt8), lead_idx : Int32, seq_len : Int32, lead : UInt8) : Bool
+      return false unless valid_utf8_tail?(ptr, lead_idx, seq_len >= 4 ? 3 : seq_len, lead)
+      return true if seq_len < 4
+
+      b3 = ptr[lead_idx + 3]
+      (0x80_u8..0xBF_u8).includes?(b3)
     end
 
     private def self.valid_utf8_tail?(ptr : Pointer(UInt8), lead_idx : Int32, tail_len : Int32, lead : UInt8) : Bool
