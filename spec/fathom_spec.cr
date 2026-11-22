@@ -41,6 +41,12 @@ describe Fathom do
     Fathom.detect("hello\0world\0".to_slice).should eq "UTF-8"
   end
 
+  it "treats NUL-heavy buffers as binary rather than UTF-8" do
+    Fathom.detect(Bytes.new(1000, 0)).should be_nil
+    Fathom.decode(Bytes.new(1000, 0)).should be_nil
+    Fathom.detect("abc".encode("UTF-32LE")).should be_nil
+  end
+
   it "handles 1-byte and 2-byte non-UTF-8 inputs safely" do
     Fathom.detect(Bytes[0x00, 0xFF]).should be_nil
     Fathom.detect(Bytes[0xFF]).should_not be_nil
@@ -75,19 +81,19 @@ describe Fathom do
   end
 
   {% for enc in %w[WINDOWS-1251 KOI8-R ISO-8859-5 IBM866] %}
-    it "detects Russian in {{enc.id}}" do
-      detect(RU, {{enc}}).should eq {{enc}}
+    it "detects Russian in {{ enc.id }}" do
+      detect(RU, {{ enc }}).should eq {{ enc }}
     end
 
-    it "detects a short Russian phrase in {{enc.id}}" do
-      detect("Привет, мир", {{enc}}).should eq {{enc}}
+    it "detects a short Russian phrase in {{ enc.id }}" do
+      detect("Привет, мир", {{ enc }}).should eq {{ enc }}
     end
   {% end %}
 
   {% for enc in %w[WINDOWS-1251 KOI8-U ISO-8859-5] %}
-    it "detects Ukrainian in {{enc.id}}" do
+    it "detects Ukrainian in {{ enc.id }}" do
       # ISO-8859-5 has no "ґ".
-      detect(UK.delete('ґ'), {{enc}}).should eq {{enc}}
+      detect(UK.delete('ґ'), {{ enc }}).should eq {{ enc }}
     end
   {% end %}
 
@@ -99,12 +105,12 @@ describe Fathom do
 
   describe ".match" do
     it "returns structured Match metadata with BOM flag and confidence" do
-      bom_match = Fathom.match(Bytes[0xEF, 0xBB, 0xBF, 0x41]).not_nil!
+      bom_match = Fathom.match(Bytes[0xEF, 0xBB, 0xBF, 0x41]).should_not be_nil
       bom_match.encoding.should eq "UTF-8"
       bom_match.confidence.should eq 1.0
       bom_match.bom?.should be_true
 
-      win_match = Fathom.match(RU.encode("WINDOWS-1251")).not_nil!
+      win_match = Fathom.match(RU.encode("WINDOWS-1251")).should_not be_nil
       win_match.encoding.should eq "WINDOWS-1251"
       win_match.confidence.should be > 0.5
       win_match.confidence.should be <= 1.0
@@ -125,10 +131,11 @@ describe Fathom do
   end
 
   describe ".detect_all" do
-    it "returns candidates sorted by descending confidence" do
+    it "returns candidates sorted by descending confidence without duplicate encodings" do
       matches = Fathom.detect_all(RU.encode("WINDOWS-1251"))
       matches.should_not be_empty
       matches.first.encoding.should eq "WINDOWS-1251"
+      matches.map(&.encoding).uniq!.size.should eq matches.size
       matches.each_cons(2) do |(a, b)|
         a.confidence.should be >= b.confidence
       end
@@ -142,7 +149,7 @@ describe Fathom do
       Fathom.detect(io).should eq "KOI8-U"
 
       io.rewind
-      m = Fathom.match(io).not_nil!
+      m = Fathom.match(io).should_not be_nil
       m.encoding.should eq "KOI8-U"
       m.bom?.should be_false
     end
@@ -182,7 +189,7 @@ describe Fathom do
 
     it "supports custom probers" do
       detector = Fathom::Detector.new(probers: [MockAsciiXorProber.new] of Fathom::Prober)
-      m = detector.match("café".encode("WINDOWS-1252")).not_nil!
+      m = detector.match("café".encode("WINDOWS-1252")).should_not be_nil
       m.encoding.should eq "X-CUSTOM-8BIT"
       m.confidence.should eq 0.99
     end
@@ -246,6 +253,13 @@ describe Fathom do
       Fathom.decode(io).should eq UK
     end
 
+    it "drops an incomplete trailing character that detection accepts" do
+      Fathom.decode("Привет".to_slice[0, 11]).should eq "Приве"
+      Fathom.decode("hello world".encode("UTF-16LE") + Bytes[0x41]).should eq "hello world"
+      Fathom.decode(Bytes[0xFF, 0xFE, 0x41]).should eq ""
+      Fathom.decode("hello world 😀".encode("UTF-16BE")[0, 26]).should eq "hello world "
+    end
+
     it "passes invalid option through to String.new unchanged" do
       corrupt = RU.to_slice + Bytes[0xFF]
       Fathom.detect(corrupt).should eq "UTF-8"
@@ -266,10 +280,58 @@ describe Fathom do
     end
   end
 
+  describe "bigram disambiguation" do
+    it "separates short Ukrainian without unique letters in KOI8-U from Russian KOI8-R" do
+      uk_no_unique = "Тарас Григорович Шевченко (25 лютого (9 березня) 1814, село Моринці)"
+      detect(uk_no_unique, "KOI8-U").should eq "KOI8-U"
+
+      ru_short = "Александр Сергеевич Пушкин (26 мая (6 июня) 1799, Москва)"
+      detect(ru_short, "KOI8-R").should eq "KOI8-R"
+    end
+  end
+
+  describe "short Russian words" do
+    it "labels short KOI8 text without Ukrainian-only letters as KOI8-R" do
+      ["да", "хорошо", "мама", "Город", "Цена: 100 руб.", "Дата: 01.02.2024"].each do |text|
+        detect(text, "KOI8-R").should eq "KOI8-R"
+      end
+    end
+
+    it "does not read IBM866 as WINDOWS-1251 letters separated by symbols" do
+      ["хорошо", "работа", "пароль", "папа", "Дата", "Всё хорошо"].each do |text|
+        detect(text, "IBM866").should eq "IBM866"
+      end
+    end
+  end
+
+  describe "mixed ASCII and Cyrillic" do
+    it "does not read Cyrillic words inside English text as WINDOWS-1252" do
+      log = "2024-05-01 12:00:01 ERROR [main] Failed to open file: Файл не найден\n"
+      %w[WINDOWS-1251 KOI8-R ISO-8859-5 IBM866].each do |enc|
+        detect(log, enc).should_not eq "WINDOWS-1252"
+      end
+      detect(log, "WINDOWS-1251").should eq "WINDOWS-1251"
+      detect(log, "IBM866").should eq "IBM866"
+    end
+  end
+
+  describe "edge cases" do
+    it "detects WINDOWS-1252 when the only high bytes are symbols" do
+      match = Fathom.match("100 €".encode("WINDOWS-1252")).should_not be_nil
+      match.encoding.should eq "WINDOWS-1252"
+      match.confidence.should eq 0.25
+    end
+
+    it "accepts UTF-8 whose first multi-byte character is cut by the sample boundary" do
+      text = ("a" * 65_535) + "é and more text é"
+      Fathom.detect(text.to_slice).should eq "UTF-8"
+    end
+  end
+
   describe "tolerant UTF-8" do
     it "detects slightly corrupted UTF-8 with lowered confidence" do
       corrupt = RU.to_slice + Bytes[0xFF, 0x80]
-      m = Fathom.match(corrupt).not_nil!
+      m = Fathom.match(corrupt).should_not be_nil
       m.encoding.should eq "UTF-8"
       m.confidence.should be < 1.0
       m.confidence.should be >= 0.75
@@ -282,7 +344,7 @@ describe Fathom do
 
       # Lots of ASCII, 10 valid multi-byte chars, and 1 invalid byte -> matches tolerant UTF-8.
       valid_multibyte_dominant = ("plain ascii log line\n" * 40).to_slice + "éèàçùêîôûä".to_slice + Bytes[0xFF]
-      m = Fathom.match(valid_multibyte_dominant).not_nil!
+      m = Fathom.match(valid_multibyte_dominant).should_not be_nil
       m.encoding.should eq "UTF-8"
       m.confidence.should be < 1.0
     end

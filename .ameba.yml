@@ -1,2 +1,18 @@
+Globs:
+  - "**/*.cr"
+  - "!lib"
+
 Excluded:
   - src/fathom/tables.cr
+
+# Byte-level loops use short conventional names (b, i, p, c, ch).
+Naming/BlockParameterName:
+  Enabled: false
+
+# Probers are deliberately single flat hot loops; splitting them costs speed and clarity.
+Metrics/CyclomaticComplexity:
+  Enabled: false
+
+# `return nil` is kept explicit in methods returning `Match?`.
+Style/RedundantNilInControlExpression:
+  Enabled: false

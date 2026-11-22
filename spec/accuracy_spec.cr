@@ -8,8 +8,8 @@ private GATE_SLICE_SIZES = [64, 256, nil]
 private GATE_THRESHOLDS = {
   "IBM866"       => {precision: 1.00, recall: 1.00},
   "ISO-8859-5"   => {precision: 1.00, recall: 1.00},
-  "KOI8-R"       => {precision: 0.75, recall: 1.00},
-  "KOI8-U"       => {precision: 1.00, recall: 0.66},
+  "KOI8-R"       => {precision: 1.00, recall: 1.00},
+  "KOI8-U"       => {precision: 1.00, recall: 1.00},
   "UTF-16BE"     => {precision: 1.00, recall: 1.00},
   "UTF-16LE"     => {precision: 1.00, recall: 1.00},
   "UTF-32BE"     => {precision: 1.00, recall: 1.00},
@@ -60,7 +60,7 @@ describe "Accuracy regression gate" do
     end
 
     # Every >=256B and full sample in the CI gate must be detected accurately.
-    results.select { |r| r[:size_limit].nil? || r[:size_limit].not_nil! >= 256 }.each do |r|
+    results.select { |r| (r[:size_limit] || Int32::MAX) >= 256 }.each do |r|
       r[:actual].should eq r[:expected]
     end
   end

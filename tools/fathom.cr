@@ -36,7 +36,7 @@ module FathomCLI
     min_confidence = Fathom::Detector::DEFAULT_MIN_CONFIDENCE
     files = [] of String
 
-    parser = OptionParser.parse(args) do |p|
+    OptionParser.parse(args) do |p|
       p.banner = <<-BANNER
         Usage: crystal run tools/fathom.cr -- [options] [file...]
                crystal run tools/fathom.cr -- --corpus [dir] [options]
@@ -128,9 +128,8 @@ module FathomCLI
         puts({
           file:    label,
           bytes:   bytes.size,
-          matches: matches.map { |m|
-            {encoding: m.encoding, iconv_name: m.iconv_name, confidence: m.confidence.round(4), bom: m.bom?}
-          },
+          matches: matches.map { |m| # ameba:disable Style/MultilineCurlyBlock
+ {encoding: m.encoding, iconv_name: m.iconv_name, confidence: m.confidence.round(4), bom: m.bom?} },
         }.to_json)
       else
         puts "#{label} (#{bytes.size} bytes):"
@@ -244,7 +243,7 @@ module FathomCLI
   end
 
   private def self.compute_metrics(results : Array(EvalResult)) : {Hash(String, Metrics), Array({String, Int32, Int32})}
-    encodings = results.map(&.expected).uniq.sort
+    encodings = results.map(&.expected).uniq!.sort!
     by_enc = {} of String => Metrics
 
     encodings.each do |enc|
@@ -254,7 +253,7 @@ module FathomCLI
       by_enc[enc] = Metrics.new(tp, fp, fn)
     end
 
-    buckets = results.map(&.size_bucket).uniq
+    buckets = results.map(&.size_bucket).uniq!
     by_size = buckets.map do |bucket|
       subset = results.select { |r| r.size_bucket == bucket }
       correct = subset.count { |r| r.expected == r.actual }
@@ -316,12 +315,10 @@ module FathomCLI
       total:     results.size,
       correct:   total_correct,
       accuracy:  results.empty? ? 0.0 : total_correct.to_f64 / results.size,
-      encodings: by_enc.transform_values { |m|
-        {tp: m.tp, fp: m.fp, fn: m.fn, precision: m.precision.round(4), recall: m.recall.round(4), f1: m.f1.round(4)}
-      },
-      sizes: by_size.map { |bucket, correct, total|
-        {size: bucket, correct: correct, total: total, accuracy: total == 0 ? 0.0 : (correct.to_f64 / total).round(4)}
-      },
+      encodings: by_enc.transform_values { |m| # ameba:disable Style/MultilineCurlyBlock
+ {tp: m.tp, fp: m.fp, fn: m.fn, precision: m.precision.round(4), recall: m.recall.round(4), f1: m.f1.round(4)} },
+      sizes: by_size.map { |bucket, correct, total| # ameba:disable Style/MultilineCurlyBlock
+ {size: bucket, correct: correct, total: total, accuracy: total == 0 ? 0.0 : (correct.to_f64 / total).round(4)} },
     }
   end
 

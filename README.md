@@ -101,21 +101,24 @@ Baseline on `corpus/`: 27 Wikipedia articles in 9 languages (sources and license
 
 | Input Size | Fathom | ICU (`ucsdet`) |
 | --- | ---: | ---: |
-| `64B` | 87 / 88 (98.86%) | 66 / 88 (75.0%) |
+| `64B` | 88 / 88 (100.0%) | 66 / 88 (75.0%) |
 | `256B` | 90 / 90 (100.0%) | 81 / 90 (90.0%) |
 | `1024B` | 90 / 90 (100.0%) | 84 / 90 (93.33%) |
 | `4096B` | 16 / 16 (100.0%) | 16 / 16 (100.0%) |
 | `full` | 90 / 90 (100.0%) | 84 / 90 (93.33%) |
-| **Overall** | **373 / 374 (99.73%)** | **331 / 374 (88.5%)** |
+| **Overall** | **374 / 374 (100.0%)** | **331 / 374 (88.5%)** |
 
-Remaining miss: one 64-byte Ukrainian `KOI8-U` slice reported as `KOI8-R` (the two differ only in a few letters).
+(`0.2.0` unigram baseline was `373 / 374 (99.73%)`; language-level bigram models added in `0.3.0` resolve the remaining 64-byte `KOI8-U` vs `KOI8-R` case.)
 
 ## Development
 
 ```sh
 crystal tool format --check
+shards install && mkdir -p bin && crystal build -o bin/ameba lib/ameba/bin/ameba.cr  # once
+bin/ameba
 crystal spec
 crystal docs
+crystal run tools/train_models.cr -- --fetch        # train bigram models from Wikipedia
 crystal run tools/gen_tables.cr > src/fathom/tables.cr # regenerate precomputed byte tables
 crystal run --release bench/benchmark.cr             # run throughput benchmark
 ```
