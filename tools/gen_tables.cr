@@ -6,18 +6,21 @@ require "json"
 require "../src/fathom/encoding"
 
 MODELS_DIR = File.expand_path("models", __DIR__)
-MODELS     = %w(western ru uk be)
+MODELS     = %w[western ru uk be]
 
+# {encoding, model, requires_high_letters, handicap}. The KOI8-U handicap is a prior of
+# 2 nats (40 / SCORE_SCALE) for KOI8-R: on a handful of letters the `uk` model beats `ru`
+# by chance, and without Ukrainian-only letters both encodings decode identically.
 PROBER_SPECS = [
-  {"WINDOWS-1252", "western", false},
-  {"WINDOWS-1251", "ru", true},
-  {"WINDOWS-1251", "uk", true},
-  {"WINDOWS-1251", "be", true},
-  {"KOI8-R", "ru", true},
-  {"KOI8-U", "uk", true},
-  {"ISO-8859-5", "ru", true},
-  {"ISO-8859-5", "uk", true},
-  {"IBM866", "ru", true},
+  {"WINDOWS-1252", "western", false, 0},
+  {"WINDOWS-1251", "ru", true, 0},
+  {"WINDOWS-1251", "uk", true, 0},
+  {"WINDOWS-1251", "be", true, 0},
+  {"KOI8-R", "ru", true, 0},
+  {"KOI8-U", "uk", true, 40},
+  {"ISO-8859-5", "ru", true, 0},
+  {"ISO-8859-5", "uk", true, 0},
+  {"IBM866", "ru", true, 0},
 ]
 
 KIND_OTHER = 0_u8
@@ -32,6 +35,8 @@ struct ModelSpec
   getter index : Hash(Char, UInt8)
 
   def initialize(@name : String, @alphabet : String, @matrix : Array(Int32))
+    abort "#{@name}: alphabet has #{@alphabet.size} letters, max 63" if @alphabet.size > 63
+    abort "#{@name}: matrix has #{@matrix.size} cells, expected 4096" unless @matrix.size == 4096
     @index = {} of Char => UInt8
     @alphabet.each_char_with_index do |ch, i|
       @index[ch] = (i + 1).to_u8
@@ -105,7 +110,7 @@ puts
 puts "    # Precomputed single-byte bigram probers (WINDOWS-1252 first to break ties on shared bytes)."
 puts "    PROBERS = ["
 
-PROBER_SPECS.each do |enc, model_name, requires_high_letters|
+PROBER_SPECS.each do |enc, model_name, requires_high_letters, handicap|
   m = models[model_name]
   iconv_enc = Fathom::Encoding.iconv_name(enc)
   entries = (0..255).map do |b|
@@ -126,6 +131,7 @@ PROBER_SPECS.each do |enc, model_name, requires_high_letters|
     puts "          #{slice.map { |v| "#{v}_u8" }.join(", ")},"
   end
   puts "        ],"
+  puts "        #{handicap}," unless handicap == 0
   puts "      ),"
 end
 

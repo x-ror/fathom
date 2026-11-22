@@ -48,17 +48,25 @@ module Fathom
       getter model : LanguageModel
 
       # When `true`, rejects inputs that lack runs of non-ASCII letters
-      # (such as Latin text with isolated accented vowels).
+      # (such as Latin text with isolated accented vowels). When `false`, rejects
+      # inputs whose non-ASCII bytes mostly sit in runs of three or more
+      # (such as Cyrillic words embedded in ASCII text).
       getter? requires_high_letters : Bool
 
       # Bit-packed `(CharKind << 6) | order` lookup table for bytes `0x00..0xFF`.
       getter byte_map : StaticArray(UInt8, 256)
+
+      # Score handicap (in quantized bigram units) subtracted once per input.
+      # It acts as a prior against this prober that fades as the input grows,
+      # so short text without Ukrainian-only letters reads as KOI8-R, not KOI8-U.
+      getter handicap : Int32
 
       def initialize(
         @encoding : String,
         @model : LanguageModel,
         @requires_high_letters : Bool,
         @byte_map : StaticArray(UInt8, 256),
+        @handicap : Int32 = 0,
       )
       end
 
@@ -76,6 +84,8 @@ module Fathom
         high_letters = 0
         isolated_high = 0
         junk_count = 0
+        high_run = 0
+        long_run_bytes = 0
 
         prev_order = 0_u8
         prev_kind = CharKind::Other.value
@@ -89,9 +99,18 @@ module Fathom
 
           if byte >= 0x80_u8 && order > 0_u8
             high_letters += 1
-            if (i == 0 || ptr[i - 1] < 0x80_u8) && (i + 1 == size || ptr[i + 1] < 0x80_u8)
+            # A letter is isolated when neither neighbour is a non-ASCII letter, so
+            # symbols such as 0xAE cannot stand in as word separators ("\xE5\xAE\xE0\xAE").
+            if (i == 0 || !high_letter?(map_ptr, ptr[i - 1])) && (i + 1 == size || !high_letter?(map_ptr, ptr[i + 1]))
               isolated_high += 1
             end
+          end
+
+          if byte >= 0x80_u8
+            high_run += 1
+          else
+            long_run_bytes += high_run if high_run >= 3
+            high_run = 0
           end
 
           if kind == CharKind::Junk.value
@@ -118,21 +137,35 @@ module Fathom
           pairs += 1
         end
 
+        long_run_bytes += high_run if high_run >= 3
+
         if @requires_high_letters
-          return nil if high_letters == 0 || isolated_high * 2 > high_letters
+          return nil if high_letters == 0 || isolated_high.to_i64 * 2 > high_letters
+        elsif long_run_bytes.to_i64 * 2 > stats.high_bytes
+          # NOTE: run-length heuristic, because this model also scores ASCII bigrams
+          # and so outscores the Cyrillic probers on mixed English/Cyrillic text.
+          # Score both families over the same pairs (needs a retrain) if this misfires.
+          return nil
         end
 
-        if size == 1 && !@requires_high_letters && junk_count == 0
+        # No scorable letter pairs (e.g. "100 \xA4"): symbols alone are weak evidence.
+        if (size == 1 || pairs == 0) && !@requires_high_letters && junk_count == 0
           return Match.new(@encoding, 0.25)
         end
 
         return nil if pairs == 0
 
+        total -= @handicap
         avg = total.to_f64 / (pairs * SCORE_SCALE)
         return nil if avg <= 0.0
 
         confidence = 0.25 + 0.74 * (avg / (avg + 0.8))
         Match.new(@encoding, confidence)
+      end
+
+      @[AlwaysInline]
+      private def high_letter?(map_ptr : Pointer(UInt8), byte : UInt8) : Bool
+        byte >= 0x80_u8 && (map_ptr[byte] & ORDER_MASK) > 0_u8
       end
     end
   end
