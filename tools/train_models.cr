@@ -13,7 +13,7 @@ MODELS_DIR  = File.expand_path("models", __DIR__)
 SOURCES_DIR = File.join(MODELS_DIR, "sources")
 MAX_LEN     = 8192
 ORDER_SIZE  =   64
-ALPHA       =  0.5
+ALPHA       =  1.0
 SCALE       = 20.0
 
 # Training articles per Wikipedia language code — disjoint from corpus/SOURCES.md.
@@ -36,6 +36,46 @@ ARTICLES = {
   "it" => ["Italia", "Storia", "Matematica", "Fisica"],
   "pt" => ["Portugal", "História", "Matemática", "Física"],
   "en" => ["History", "Mathematics", "Physics", "Biology"],
+  "pl" => [
+    "Polska", "Historia", "Matematyka", "Fizyka",
+    "Biologia", "Astronomia", "Geografia", "Literatura",
+  ],
+  "cs" => [
+    "Česko", "Historie", "Matematika", "Fyzika",
+    "Biologie", "Astronomie", "Geografie", "Literatura",
+  ],
+  "hu" => [
+    "Magyarország", "Történelem", "Matematika", "Fizika",
+    "Biológia", "Csillagászat", "Földrajz", "Irodalom",
+  ],
+  "lt" => [
+    "Lietuva", "Istorija", "Matematika", "Fizika",
+    "Biologija", "Astronomija", "Geografija", "Literatūra",
+  ],
+  "lv" => [
+    "Latvija", "Vēsture", "Matemātika", "Fizika",
+    "Bioloģija", "Astronomija", "Ģeogrāfija", "Literatūra",
+  ],
+  "el" => [
+    "Ελλάδα", "Ιστορία", "Μαθηματικά", "Φυσική",
+    "Βιολογία", "Αστρονομία", "Γεωγραφία", "Λογοτεχνία",
+  ],
+  "tr" => [
+    "Türkiye", "Tarih", "Matematik", "Fizik",
+    "Biyoloji", "Astronomi", "Coğrafya", "Edebiyat",
+  ],
+  "he" => [
+    "ישראל", "היסטוריה", "מתמטיקה", "פיזיקה",
+    "ביולוגיה", "אסטרונומיה", "גאוגרפיה", "ספרות",
+  ],
+  "ar" => [
+    "مصر", "تاريخ", "رياضيات", "فيزياء",
+    "أحياء", "علم الفلك", "جغرافيا", "أدب",
+  ],
+  "th" => [
+    "ประเทศไทย", "ประวัติศาสตร์", "คณิตศาสตร์", "ฟิสิกส์",
+    "ชีววิทยา", "ดาราศาสตร์", "ภูมิศาสตร์", "วรรณคดี",
+  ],
 }
 
 # Ordered lowercase alphabets (1..K, max 63; order 0 = word boundary / non-letter).
@@ -43,7 +83,17 @@ ALPHABETS = {
   "ru"      => "абвгдеёжзийклмнопрстуфхцчшщъыьэюя",
   "uk"      => "абвгґдеєжзиіїйклмнопрстуфхцчшщьюя",
   "be"      => "абвгдеёжзійклмнопрстуўфхцчшыьэюя",
-  "western" => "abcdefghijklmnopqrstuvwxyzéèêëàâäáãçíîïìñóôöòõúûüùßœÿ",
+  "western" => "abcdefghijklmnopqrstuvwxyzéèêëàâäáãçíîïìñóôöòõúûüùßœÿý",
+  "pl"      => "abcdefghijklmnopqrstuvwxyząćęłńóśźż",
+  "cs"      => "abcdefghijklmnopqrstuvwxyzáčďéěíňóřšťúůýž",
+  "hu"      => "abcdefghijklmnopqrstuvwxyzáéíóöőúüű",
+  "lt"      => "abcdefghijklmnopqrstuvwxyząčęėįšųūž",
+  "lv"      => "abcdefghijklmnopqrstuvwxyzāčēģīķļņōšūž",
+  "el"      => "αβγδεζηθικλμνξοπρσςτυφχψωάέήίόύώϊϋΐΰ",
+  "tr"      => "abcdefghijklmnopqrstuvwxyzçğıöşüâîû",
+  "he"      => "אבגדהוזחטיךכלםמןנסעףפץצקרשת",
+  "ar"      => "ابتثجحخدذرزسشصضطظعغفقكلمنهويىةءأإؤئآ",
+  "th"      => "กขคฆงจฉชซฌญฎฏฐฑฒณดตถทธนบปผฝพฟภมยรฤลวศษสหฬอฮะัาำิีึืุูเแโใไๆ็่้์",
 }
 
 def fetch(lang : String, title : String) : String
@@ -105,14 +155,18 @@ def count_bigrams(text : String, alphabet : String) : {Array(Float64), Float64}
   {counts, total}
 end
 
-def build_matrix(counts : Array(Float64), total : Float64, alphabet : String) : Array(Int32)
+def build_matrix(counts : Array(Float64), alphabet : String) : Array(Int32)
   k = alphabet.size
-  vocab = ((k + 1) * (k + 1) - 1).to_f64
-  baseline = 1.0 / vocab
-  denom = total + ALPHA * vocab
-
   matrix = Array(Int32).new(ORDER_SIZE * ORDER_SIZE, 0)
   (0..k).each do |p|
+    n_cols = p == 0 ? k : (k + 1)
+    row_sum = 0.0
+    (0..k).each do |c|
+      next if p == 0 && c == 0
+      row_sum += counts[(p << 6) | c]
+    end
+    baseline = 1.0 / n_cols.to_f64
+    denom = row_sum + ALPHA * n_cols.to_f64
     (0..k).each do |c|
       next if p == 0 && c == 0
       idx = (p << 6) | c
@@ -154,13 +208,13 @@ if ARGV.includes?("--fetch")
   File.write(File.join(MODELS_DIR, "SOURCES.md"), sources)
 end
 
-%w[ru uk be].each do |lang|
-  alphabet = ALPHABETS[lang]
+ALPHABETS.each do |lang, alphabet|
+  next if lang == "western"
   files = Dir.glob(File.join(SOURCES_DIR, lang, "*.txt")).sort
   abort "no training files in #{SOURCES_DIR}/#{lang}; run with --fetch" if files.empty?
   text = files.map { |f| File.read(f) }.join("\n")
-  counts, total = count_bigrams(text, alphabet)
-  save_model(lang, alphabet, build_matrix(counts, total, alphabet))
+  counts = count_bigrams(text, alphabet)[0]
+  save_model(lang, alphabet, build_matrix(counts, alphabet))
 end
 
 # Western model balances bigram probabilities equally across fr, de, es, it, pt, en.
@@ -181,4 +235,4 @@ per_lang.each do |counts, total|
     balanced_counts[idx] += c * weight
   end
 end
-save_model("western", western_alpha, build_matrix(balanced_counts, avg_total, western_alpha))
+save_model("western", western_alpha, build_matrix(balanced_counts, western_alpha))
