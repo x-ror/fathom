@@ -1,0 +1,27 @@
+
+# <type>(<scope>): <subject>
+#
+# Allowed types:
+#   feat     New feature or encoding support
+#   fix      Bug fix
+#   perf     Performance improvement
+#   refactor Code change without feature or bug fix
+#   docs     Documentation changes (README, ROADMAP, CHANGELOG, doc comments)
+#   test     Adding or updating specs
+#   build    Build system, shard.yml, or generator tools
+#   ci       CI/CD workflows or git hooks
+#   chore    Maintenance tasks and config updates
+#   style    Formatting / whitespace changes
+#
+# Optional scopes: bom, utf, single_byte, detector, tables, spec, bench, ci
+#
+# Rules:
+#   - Use imperative mood in the subject ("add ...", not "added ...")
+#   - Keep the header at or under 72 characters
+#   - Do not end the subject with a period
+#   - Add `!` after type/scope (or a `BREAKING CHANGE:` footer) for breaking changes
+#
+# Examples:
+#   feat(utf): add BOM-less UTF-32 detection
+#   fix(detector): fall back to UTF-8 when NUL input is not UTF-16
+#   perf(single_byte): avoid heap allocation in prober loop

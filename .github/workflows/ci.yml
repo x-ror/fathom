@@ -6,6 +6,31 @@ on:
   pull_request:
 
 jobs:
+  commits:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate commit messages
+        run: |
+          tmp=$(mktemp)
+          trap 'rm -f "$tmp"' EXIT
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            commits=$(git rev-list "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}")
+          elif git cat-file -e "${{ github.event.before }}^{commit}" 2>/dev/null; then
+            commits=$(git rev-list "${{ github.event.before }}..${{ github.sha }}")
+          else
+            commits="HEAD"
+          fi
+
+          for sha in $commits; do
+            git log -1 --pretty=%B "$sha" > "$tmp"
+            sh .githooks/commit-msg "$tmp"
+          done
+
   test:
     runs-on: ubuntu-latest
     steps:
