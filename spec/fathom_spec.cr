@@ -170,6 +170,16 @@ describe Fathom do
       end
     end
 
+    it "validates min_confidence" do
+      expect_raises(ArgumentError) do
+        Fathom::Detector.new(min_confidence: -0.1)
+      end
+
+      expect_raises(ArgumentError) do
+        Fathom::Detector.new(min_confidence: 1.1)
+      end
+    end
+
     it "supports custom probers" do
       detector = Fathom::Detector.new(probers: [MockAsciiXorProber.new] of Fathom::Prober)
       m = detector.match("café".encode("WINDOWS-1252")).not_nil!

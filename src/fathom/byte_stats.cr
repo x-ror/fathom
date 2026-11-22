@@ -39,7 +39,7 @@ module Fathom
 
     # Returns `true` if more than 5% of the sample consists of binary control bytes.
     def likely_binary? : Bool
-      @size > 0 && @control_bytes * 20 > @size
+      @size > 0 && @control_bytes.to_i64 * 20 > @size
     end
 
     # Analyzes *bytes* in a single tight pass without heap allocations.

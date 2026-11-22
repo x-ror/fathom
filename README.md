@@ -8,6 +8,7 @@ Charset / encoding detection for Crystal. Pure Crystal, zero runtime dependencie
 dependencies:
   fathom:
     github: x-ror/fathom
+    version: ~> 0.1.0
 ```
 
 ## Usage

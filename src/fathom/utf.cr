@@ -36,9 +36,9 @@ module Fathom
       return nil if bytes.size < 4 || stats.null_bytes == 0
 
       pairs = bytes.size // 2
-      le = if stats.odd_nulls >= 2 && stats.odd_nulls * 2 >= pairs && stats.even_nulls * 20 <= pairs
+      le = if stats.odd_nulls >= 2 && stats.odd_nulls.to_i64 * 2 >= pairs && stats.even_nulls.to_i64 * 20 <= pairs
              true
-           elsif stats.even_nulls >= 2 && stats.even_nulls * 2 >= pairs && stats.odd_nulls * 20 <= pairs
+           elsif stats.even_nulls >= 2 && stats.even_nulls.to_i64 * 2 >= pairs && stats.odd_nulls.to_i64 * 20 <= pairs
              false
            else
              return nil

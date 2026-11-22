@@ -36,6 +36,7 @@ module Fathom
       @probers : Indexable(Prober) = SingleByte::PROBERS,
     )
       raise ArgumentError.new("sample_size must be positive") if @sample_size <= 0
+      raise ArgumentError.new("min_confidence must be between 0.0 and 1.0") unless (0.0..1.0).includes?(@min_confidence)
     end
 
     # Returns the best encoding name for *bytes*, or `nil` if unknown.
