@@ -9,6 +9,7 @@
 require "http/client"
 require "json"
 require "uri"
+require "../src/fathom/encoding"
 
 CORPUS  = File.expand_path("../corpus", __DIR__)
 FIXTURE = File.expand_path("../spec/fixtures/corpus", __DIR__)
@@ -71,6 +72,7 @@ def fetch(lang : String, title : String) : String
 end
 
 def encode(text : String, encoding : String) : Bytes
+  encoding = Fathom::Encoding.iconv_name(encoding)
   io = IO::Memory.new
   text.each_char do |c|
     begin

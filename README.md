@@ -80,7 +80,7 @@ Not yet built in: Central European, Greek, Turkish, CJK (can be plugged in via `
 
 - Canonical encoding labels follow the WHATWG Encoding Standard (uppercase, e.g. `UTF-8`, `WINDOWS-1252`, `IBM866`).
 - ISO/Windows pairs differing only in `0x80..0x9F` (`ISO-8859-1`/`WINDOWS-1252`, `ISO-8859-9`/`WINDOWS-1254`, `ISO-8859-13`/`WINDOWS-1257`, `TIS-620`/`WINDOWS-874`) collapse to the Windows label via `Fathom::Encoding.canonical_name`, since the Windows variant decodes both.
-- `Fathom::Encoding.iconv_name` (also exposed as `Match#iconv_name`) returns the name to pass to `String.new`. For every built-in encoding it equals the canonical label.
+- `Fathom::Encoding.iconv_name` (also exposed as `Match#iconv_name`) returns the name to pass to `String.new`, chosen to work on every supported platform. It equals the canonical label except `IBM866` → `CP866`, the only name musl accepts.
 - Detection is platform-independent: `Fathom.detect` and `Fathom.match` always return canonical labels regardless of host OS. If the host `iconv` cannot decode a detected encoding, `Fathom.decode` raises `ArgumentError` just as `String.new` does.
 
 CI decodes every built-in encoding through the platform `iconv` on Linux (glibc), Alpine (musl), macOS, and Windows (`spec/iconv_spec.cr`).

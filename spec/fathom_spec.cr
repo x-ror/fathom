@@ -7,7 +7,7 @@ DE = "Zwölf Boxkämpfer jagen Viktor quer über den großen Sylter Deich, währ
 EN = "It’s a “quoted” sentence — with curly punctuation only."
 
 private def detect(text, encoding)
-  Fathom.detect(text.encode(encoding))
+  Fathom.detect(text.encode(Fathom::Encoding.iconv_name(encoding)))
 end
 
 private struct MockAsciiXorProber
@@ -206,6 +206,7 @@ describe Fathom do
     it "provides iconv-compatible names via Match#iconv_name" do
       Fathom::Match.new("WINDOWS-1251", 0.9).iconv_name.should eq "WINDOWS-1251"
       Fathom::Match.new("iso-8859-1", 0.9).iconv_name.should eq "WINDOWS-1252"
+      Fathom::Match.new("IBM866", 0.9).iconv_name.should eq "CP866"
     end
   end
 

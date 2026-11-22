@@ -66,10 +66,12 @@ module Fathom
     # Returns the encoding name to pass to Crystal's `String.new(bytes, name)` (`iconv`)
     # for the given canonical *encoding*.
     #
-    # Every built-in encoding uses its canonical label as the `iconv` name. Encodings whose
-    # `iconv` name differs per platform get a mapping here when their prober is added.
+    # Names are chosen to work with every supported `iconv`: glibc, musl, macOS libiconv, and Windows.
     def self.iconv_name(encoding : String) : String
-      canonical_name(encoding)
+      case canonical = canonical_name(encoding)
+      when "IBM866" then "CP866" # musl knows only "cp866"; the others accept both names
+      else               canonical
+      end
     end
   end
 end
