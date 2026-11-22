@@ -3,7 +3,13 @@ require "./spec_helper"
 # Fathom encodings the platform iconv cannot decode, filled in from CI results per platform
 # (e.g. `{% if flag?(:musl) %}Set{"IBM866"}{% else %}...`). Detection itself stays
 # platform-independent; only decoding raises ArgumentError.
-private KNOWN_UNSUPPORTED_ICONV = Set(String).new
+private KNOWN_UNSUPPORTED_ICONV = begin
+  {% if flag?(:musl) %}
+    Set{"IBM852", "MACINTOSH", "X-MAC-CYRILLIC", "WINDOWS-874"}
+  {% else %}
+    Set(String).new
+  {% end %}
+end
 
 private FIXTURE_CORPUS_DIR = File.expand_path("fixtures/corpus", __DIR__)
 
