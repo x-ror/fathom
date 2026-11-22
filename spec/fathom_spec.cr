@@ -208,12 +208,30 @@ describe Fathom do
       Fathom::Encoding.canonical_name("iso-8859-11").should eq "WINDOWS-874"
       Fathom::Encoding.canonical_name("cp1251").should eq "WINDOWS-1251"
       Fathom::Encoding.canonical_name("cp866").should eq "IBM866"
+      Fathom::Encoding.canonical_name("cp1250").should eq "WINDOWS-1250"
+      Fathom::Encoding.canonical_name("latin2").should eq "ISO-8859-2"
+      Fathom::Encoding.canonical_name("latin5").should eq "WINDOWS-1254"
+      Fathom::Encoding.canonical_name("cp1255").should eq "WINDOWS-1255"
+      Fathom::Encoding.canonical_name("arabic").should eq "ISO-8859-6"
+      Fathom::Encoding.canonical_name("greek").should eq "ISO-8859-7"
+      Fathom::Encoding.canonical_name("cp874").should eq "WINDOWS-874"
+      Fathom::Encoding.canonical_name("cp437").should eq "IBM437"
+      Fathom::Encoding.canonical_name("cp850").should eq "IBM850"
+      Fathom::Encoding.canonical_name("cp852").should eq "IBM852"
+      Fathom::Encoding.canonical_name("macroman").should eq "MACINTOSH"
+      Fathom::Encoding.canonical_name("cp10007").should eq "X-MAC-CYRILLIC"
     end
 
     it "provides iconv-compatible names via Match#iconv_name" do
       Fathom::Match.new("WINDOWS-1251", 0.9).iconv_name.should eq "WINDOWS-1251"
       Fathom::Match.new("iso-8859-1", 0.9).iconv_name.should eq "WINDOWS-1252"
+      Fathom::Match.new("IBM437", 0.9).iconv_name.should eq "CP437"
+      Fathom::Match.new("IBM850", 0.9).iconv_name.should eq "CP850"
+      Fathom::Match.new("IBM852", 0.9).iconv_name.should eq "CP852"
       Fathom::Match.new("IBM866", 0.9).iconv_name.should eq "CP866"
+      expected_mac = {% if flag?(:win32) %} "MACROMAN" {% else %} "MACINTOSH" {% end %}
+      Fathom::Match.new("MACINTOSH", 0.9).iconv_name.should eq expected_mac
+      Fathom::Match.new("X-MAC-CYRILLIC", 0.9).iconv_name.should eq "MACCYRILLIC"
     end
   end
 
@@ -347,6 +365,93 @@ describe Fathom do
       m = Fathom.match(valid_multibyte_dominant).should_not be_nil
       m.encoding.should eq "UTF-8"
       m.confidence.should be < 1.0
+    end
+  end
+
+  describe "expanded single-byte encodings and language metadata" do
+    it "detects all 15 newly added single-byte encodings from fixtures" do
+      {
+        {"WINDOWS-1250", "pl_1.txt", "pl"},
+        {"ISO-8859-2", "cs_1.txt", "cs"},
+        {"IBM852", "hu_1.txt", "hu"},
+        {"WINDOWS-1257", "lv_1.txt", "lv"},
+        {"WINDOWS-1253", "el_1.txt", "el"},
+        {"ISO-8859-7", "el_1.txt", "el"},
+        {"WINDOWS-1254", "tr_1.txt", "tr"},
+        {"WINDOWS-1255", "he_1.txt", "he"},
+        {"WINDOWS-1256", "ar_1.txt", "ar"},
+        {"ISO-8859-6", "ar_1.txt", "ar"},
+        {"WINDOWS-874", "th_1.txt", "th"},
+        {"IBM437", "dos_1.txt", nil},
+        {"IBM850", "fr_1.txt", nil},
+        {"MACINTOSH", "de_1.txt", nil},
+        {"X-MAC-CYRILLIC", "uk_1.txt", "uk"},
+      }.each do |encoding, file, expected_lang|
+        bytes = File.read(File.join(__DIR__, "fixtures", "corpus", encoding, file)).to_slice
+        match = Fathom.match(bytes).should_not be_nil
+        match.encoding.should eq encoding
+        match.language.should eq expected_lang
+      end
+    end
+
+    it "reports ISO 639-1 language codes for single-language models and nil for shared encodings" do
+      {
+        {"WINDOWS-1251", "ru_1.txt", "ru"},
+        {"WINDOWS-1251", "uk_1.txt", "uk"},
+        {"WINDOWS-1251", "be_1.txt", "be"},
+        {"WINDOWS-1250", "pl_1.txt", "pl"},
+        {"WINDOWS-1250", "cs_1.txt", "cs"},
+        {"WINDOWS-1250", "hu_1.txt", "hu"},
+        {"WINDOWS-1257", "lt_1.txt", "lt"},
+        {"WINDOWS-1257", "lv_1.txt", "lv"},
+        {"WINDOWS-1253", "el_1.txt", "el"},
+        {"WINDOWS-1254", "tr_1.txt", "tr"},
+        {"WINDOWS-1255", "he_1.txt", "he"},
+        {"WINDOWS-1256", "ar_1.txt", "ar"},
+        {"WINDOWS-874", "th_1.txt", "th"},
+        {"UTF-8", "ru_1.txt", nil},
+        {"UTF-16LE", "en_1_nobom.txt", nil},
+        {"WINDOWS-1252", "fr_1.txt", nil},
+      }.each do |encoding, file, expected_lang|
+        bytes = File.read(File.join(__DIR__, "fixtures", "corpus", encoding, file)).to_slice
+        match = Fathom.match(bytes).should_not be_nil
+        match.language.should eq expected_lang
+      end
+    end
+
+    it "detects all-uppercase European inputs without dropping to MACINTOSH or nil" do
+      detect("GRÜSSE AUS MÜNCHEN", "WINDOWS-1252").should eq "WINDOWS-1252"
+      detect("ZAŻÓŁĆ GĘŚLĄ JAŹŃ", "WINDOWS-1250").should eq "WINDOWS-1250"
+    end
+
+    it "detects Latvian pangrams as WINDOWS-1257 (lv) rather than Cyrillic" do
+      [
+        "Glāžšķūņa rūķīši dzērumā čiepj Baha concertflīģeļu vākus.",
+        "Muļķa hipiji mēģina brīvi nogaršot celofāna žņaudzējčūsku.",
+      ].each do |pangram|
+        match = Fathom.match(pangram.encode("WINDOWS-1257")).should_not be_nil
+        match.encoding.should eq "WINDOWS-1257"
+        match.language.should eq "lv"
+      end
+    end
+
+    it "preserves strong confidence on Western text with smart quotes or symbols" do
+      smart = Fathom.match(EN.encode("WINDOWS-1252")).should_not be_nil
+      smart.encoding.should eq "WINDOWS-1252"
+      smart.confidence.should be >= 0.55
+
+      copyright = Fathom.match("Copyright © 2024 Acme Corp. All rights reserved.".encode("WINDOWS-1252")).should_not be_nil
+      copyright.encoding.should eq "WINDOWS-1252"
+      copyright.confidence.should be >= 0.55
+    end
+
+    it "marks undefined WINDOWS-874 bytes (0xDB..0xDE, 0xFC..0xFF) as CharKind::Junk" do
+      prober = Fathom::SingleByte::PROBERS.find! do |p|
+        p.as(Fathom::SingleByte::Table).encoding == "WINDOWS-874"
+      end.as(Fathom::SingleByte::Table)
+      [0xDB, 0xDC, 0xDD, 0xDE, 0xFC, 0xFD, 0xFE, 0xFF].each do |byte|
+        (prober.byte_map[byte] >> Fathom::SingleByte::KIND_SHIFT).should eq Fathom::SingleByte::CharKind::Junk.value
+      end
     end
   end
 end

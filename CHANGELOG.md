@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Support for 15 additional single-byte encodings (21 single-byte, 26 total):
+  - Central & Baltic Europe: `WINDOWS-1250`, `ISO-8859-2`, `WINDOWS-1257`
+  - Greek & Turkish: `WINDOWS-1253`, `ISO-8859-7`, `WINDOWS-1254`
+  - Hebrew, Arabic & Thai: `WINDOWS-1255`, `WINDOWS-1256`, `ISO-8859-6`, `WINDOWS-874`
+  - DOS code pages: `IBM437`, `IBM850`, `IBM852`
+  - Mac encodings: `MACINTOSH`, `X-MAC-CYRILLIC`
+- Optional `Fathom::Match#language : String?` field reporting the ISO 639-1 language code for single-language probers (`"ru"`, `"uk"`, `"be"`, `"pl"`, `"cs"`, `"hu"`, `"lt"`, `"lv"`, `"el"`, `"tr"`, `"he"`, `"ar"`, `"th"`, or `nil` for shared encodings).
+- WHATWG encoding aliases and `Fathom::Encoding.iconv_name` mappings (`IBM437` → `CP437`, `IBM850` → `CP850`, `IBM852` → `CP852`, `IBM866` → `CP866`, `MACINTOSH`, `X-MAC-CYRILLIC` → `MACCYRILLIC`).
+- `language` field in `tools/fathom.cr` human-readable and `--json` outputs, plus single-byte-only and shared-encodings ICU comparison summaries in `--corpus`.
+
+### Changed
+- Switched single-byte training in `tools/train_models.cr` to row-conditional Markov bigram log-likelihood ratios (`ALPHA = 1.0`, eliminating per-encoding Latin handicaps and PMI workarounds) and derived the language list directly from `ALPHABETS`.
+- Simplified `Fathom::SingleByte::Table#probe` to a unified bigram accumulator with soft all-caps discounting (`ALL_CAPS_FACTOR = 0.70`), symbol-only discounting (`SYMBOL_ONLY_FACTOR = 0.85`), mixed-script boundary detection, unexplained non-ASCII `CharKind::Other` accounting, and named penalty constants (`JUNK_PENALTY = 180`, `CASE_DROP_PENALTY = 80`).
+- Compacted `src/fathom/tables.cr` from ~4,400 lines to ~2,370 lines using `.to_slice` byte-literal loaders (`SingleByte.load_bigrams` / `SingleByte.load_byte_map`), explicitly marked undefined `WINDOWS-874` bytes (`0xDB..0xDE`, `0xFC..0xFF`) as junk regardless of host `iconv`, and removed dead `CYRILLIC_MODELS`.
+- Expanded `corpus/` and `spec/fixtures/corpus/` to 19 languages (`202` corpus files, `816` evaluated slices, `791/816` (`96.94%`) overall / `463/488` (`94.88%`) single-byte / `585/600` (`97.5%`) vs ICU `556/600` (`92.67%`) on shared encodings) and updated `spec/accuracy_spec.cr` thresholds to cover all 26 encodings.
+
+### Fixed
+- All-uppercase Western and Central European inputs (`GRÜSSE AUS MÜNCHEN` in `WINDOWS-1252`, `ZAŻÓŁĆ GĘŚLĄ JAŹŃ` in `WINDOWS-1250`) no longer collapse to `MACINTOSH` or `nil`.
+- Mixed-script Latin pangrams with multi-diacritic words (Latvian in `WINDOWS-1257`) are no longer misclassified as Cyrillic `WINDOWS-1251`.
+- Early `return` inside `tools/fathom.cr --all --json` that suppressed JSON output.
+- Missing documentation for synthetic `IBM437/dos_1.txt` in `corpus/SOURCES.md`.
+
 ## [0.3.0] - 2026-11-22
 
 ### Added

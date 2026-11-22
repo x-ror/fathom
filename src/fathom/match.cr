@@ -10,8 +10,16 @@ module Fathom
     # Whether the encoding was identified by a Byte Order Mark (BOM).
     getter? bom : Bool
 
-    # Creates a new `Match` with the given *encoding*, *confidence*, and *bom* flag.
-    def initialize(@encoding : String, @confidence : Float64, @bom : Bool = false)
+    # Optional ISO 639-1 language code when the prober targets a single language, or `nil`.
+    getter language : String?
+
+    # Creates a new `Match` with the given *encoding*, *confidence*, *bom* flag, and optional *language*.
+    def initialize(
+      @encoding : String,
+      @confidence : Float64,
+      @bom : Bool = false,
+      @language : String? = nil,
+    )
     end
 
     # Platform `iconv` encoding name usable with `String.new(bytes, match.iconv_name)`.
