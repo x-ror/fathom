@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cross-platform `iconv` decode verification spec (`spec/iconv_spec.cr`) and CI matrix across Linux glibc, Alpine musl, macOS, and Windows.
 - Lightweight CLI tool at `tools/fathom.cr` for file/stdin inspection, decoding, and corpus accuracy benchmarking (with optional `icu` / `uchardet` comparison).
 
+### Fixed
+- Latin text with isolated accented letters (e.g. Italian word-final `è`) is no longer detected as `WINDOWS-1251`: Cyrillic probers now reject input where most non-ASCII letters stand alone between ASCII bytes. Corpus accuracy 364/374 → 373/374.
+
 ## [0.1.0] - 2026-11-22
 
 ### Added

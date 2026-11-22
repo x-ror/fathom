@@ -257,6 +257,14 @@ describe Fathom do
     end
   end
 
+  describe "Latin text with isolated accents" do
+    it "does not read Italian WINDOWS-1252 as WINDOWS-1251" do
+      # Word-final "è"/"à" (0xE8/0xE0) are frequent Cyrillic letters in WINDOWS-1251.
+      it_text = "La fotosintesi è un processo per mezzo del quale la città e la società producono più energia."
+      Fathom.detect(it_text.encode("WINDOWS-1252")).should eq "WINDOWS-1252"
+    end
+  end
+
   describe "tolerant UTF-8" do
     it "detects slightly corrupted UTF-8 with lowered confidence" do
       corrupt = RU.to_slice + Bytes[0xFF, 0x80]

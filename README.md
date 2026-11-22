@@ -101,14 +101,14 @@ Baseline on `corpus/`: 27 Wikipedia articles in 9 languages (sources and license
 
 | Input Size | Fathom | ICU (`ucsdet`) |
 | --- | ---: | ---: |
-| `64B` | 84 / 88 (95.45%) | 66 / 88 (75.0%) |
-| `256B` | 88 / 90 (97.78%) | 81 / 90 (90.0%) |
-| `1024B` | 88 / 90 (97.78%) | 84 / 90 (93.33%) |
+| `64B` | 87 / 88 (98.86%) | 66 / 88 (75.0%) |
+| `256B` | 90 / 90 (100.0%) | 81 / 90 (90.0%) |
+| `1024B` | 90 / 90 (100.0%) | 84 / 90 (93.33%) |
 | `4096B` | 16 / 16 (100.0%) | 16 / 16 (100.0%) |
-| `full` | 88 / 90 (97.78%) | 84 / 90 (93.33%) |
-| **Overall** | **364 / 374 (97.33%)** | **331 / 374 (88.5%)** |
+| `full` | 90 / 90 (100.0%) | 84 / 90 (93.33%) |
+| **Overall** | **373 / 374 (99.73%)** | **331 / 374 (88.5%)** |
 
-Known miss: Italian `WINDOWS-1252` text where word-final `è`/`à` (`0xE8`/`0xE0`) read as frequent Cyrillic letters in `WINDOWS-1251`.
+Remaining miss: one 64-byte Ukrainian `KOI8-U` slice reported as `KOI8-R` (the two differ only in a few letters).
 
 ## Development
 

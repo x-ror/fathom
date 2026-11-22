@@ -57,6 +57,9 @@ module Fathom
         prev_cls = CharClass::Other.value
         i = 0
 
+        letters = 0
+        isolated = 0
+
         if @mode.frequency?
           while i < size
             byte = ptr[i]
@@ -70,6 +73,8 @@ module Fathom
               if cls == CharClass::Lower.value || cls == CharClass::Upper.value
                 w -= 500 if (prev_cls == CharClass::Lower.value || prev_cls == CharClass::AsciiLower.value) && cls == CharClass::Upper.value
                 w -= 500 if prev_cls == CharClass::AsciiLower.value || prev_cls == CharClass::AsciiUpper.value
+                letters += 1
+                isolated += 1 if (i == 0 || ptr[i - 1] < 0x80_u8) && (i + 1 == size || ptr[i + 1] < 0x80_u8)
               end
               total += w
               prev_cls = cls
@@ -95,6 +100,10 @@ module Fathom
             i += 1
           end
         end
+
+        # Cyrillic words are runs of non-ASCII letters. When most letters stand alone between
+        # ASCII bytes (Latin accents such as Italian "è", "città"), this is not Cyrillic text.
+        return nil if isolated * 2 > letters
 
         avg = total.to_f64 / (high * 100.0)
         return nil if avg < 0.0

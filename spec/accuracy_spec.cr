@@ -3,7 +3,7 @@ require "./spec_helper"
 private GATE_CORPUS_DIR  = File.expand_path("fixtures/corpus", __DIR__)
 private GATE_SLICE_SIZES = [64, 256, nil]
 
-# Floors set to the measured 0.2.0 baseline on the Wikipedia gate fixture
+# Floors set to the measured accuracy on the Wikipedia gate fixture
 # (regenerate with tools/gen_corpus.cr). Raise them when accuracy improves; never lower them silently.
 private GATE_THRESHOLDS = {
   "IBM866"       => {precision: 1.00, recall: 1.00},
@@ -15,8 +15,8 @@ private GATE_THRESHOLDS = {
   "UTF-32BE"     => {precision: 1.00, recall: 1.00},
   "UTF-32LE"     => {precision: 1.00, recall: 1.00},
   "UTF-8"        => {precision: 1.00, recall: 1.00},
-  "WINDOWS-1251" => {precision: 0.90, recall: 1.00},
-  "WINDOWS-1252" => {precision: 1.00, recall: 0.94},
+  "WINDOWS-1251" => {precision: 1.00, recall: 1.00},
+  "WINDOWS-1252" => {precision: 1.00, recall: 1.00},
 }
 
 describe "Accuracy regression gate" do
