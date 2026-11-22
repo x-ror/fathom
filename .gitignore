@@ -15,3 +15,6 @@
 *.swo
 .idea/
 .vscode/
+
+# Impeccable design hook cache
+.impeccable/hook.cache.json
