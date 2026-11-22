@@ -14,7 +14,7 @@ This document outlines the planned evolution of **fathom** from `0.1.0` to a sta
   - Cyrillic (`WINDOWS-1251`, `KOI8-R`, `KOI8-U`, `ISO-8859-5`, `IBM866`) and Western European (`WINDOWS-1252`)
 - GitHub Actions CI, specs, and throughput benchmark (`bench/benchmark.cr`).
 
-## `0.2.0` — Accuracy Baseline, WHATWG Labels, `decode` & Tolerant UTF-8
+## `0.2.0` — Accuracy Baseline, WHATWG Labels, `decode` & Tolerant UTF-8 (Released)
 
 - Corpus accuracy benchmark suite measuring precision and recall across languages and input sizes, establishing a baseline (including comparisons with `uchardet`/ICU) before changing scoring.
 - Accuracy regression gate in CI: a small corpus subset runs as specs with per-encoding thresholds, so a drop in accuracy fails the build. The full corpus stays outside CI and is driven by the CLI tool.
