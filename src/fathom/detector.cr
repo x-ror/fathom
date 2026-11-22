@@ -65,12 +65,17 @@ module Fathom
       with_sample(io) { |sample| match(sample) }
     end
 
-    # Returns all plausible `Match` candidates for *bytes*, sorted by descending confidence.
+    # Returns all plausible `Match` candidates for *bytes*, deduplicated by encoding
+    # (keeping the highest confidence per encoding) and sorted by descending confidence.
     def detect_all(bytes : Bytes) : Array(Match)
-      matches = [] of Match
+      best_by_encoding = {} of String => Match
       each_candidate(bytes) do |candidate|
-        matches << candidate
+        existing = best_by_encoding[candidate.encoding]?
+        if existing.nil? || candidate.confidence > existing.confidence
+          best_by_encoding[candidate.encoding] = candidate
+        end
       end
+      matches = best_by_encoding.values
       matches.sort! { |a, b| b.confidence <=> a.confidence }
       matches
     end
