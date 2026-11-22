@@ -31,11 +31,11 @@ File.open("data.txt") do |file|
 end
 ```
 
-### Confidence scores, BOM & `iconv` names
+### Confidence scores, BOM, language & `iconv` names
 
 ```crystal
 if match = Fathom.match(bytes)
-  puts "#{match.encoding} (#{match.confidence.round(2)}, bom: #{match.bom?})"
+  puts "#{match.encoding} (#{match.confidence.round(2)}, bom: #{match.bom?}, lang: #{match.language || "none"})"
   # Use match.iconv_name when passing to String.new(bytes, ...) if the
   # WHATWG canonical label differs from the platform iconv name:
   decoded = String.new(bytes, match.iconv_name)
@@ -71,19 +71,28 @@ detector.match(bytes)
 - UTF-8 and ASCII without a BOM (reported as `UTF-8`, including truncated trailing multi-byte sequences and NUL-terminated strings)
 - Slightly corrupted UTF-8 with lowered confidence when valid multi-byte UTF-8 sequences outnumber invalid high bytes (`>= 10:1`)
 - BOM-less `UTF-16LE` and `UTF-16BE` (for ASCII/mixed-null payloads)
-- Cyrillic: `WINDOWS-1251`, `KOI8-R`, `KOI8-U`, `ISO-8859-5`, `IBM866`
-- Western European: `WINDOWS-1252`
+- Western European: `WINDOWS-1252`, `IBM437`, `IBM850`, `MACINTOSH` (`ISO-8859-15` is omitted because it differs from `WINDOWS-1252` in only 8 positions)
+- Cyrillic: `WINDOWS-1251`, `KOI8-R`, `KOI8-U`, `ISO-8859-5`, `IBM866`, `X-MAC-CYRILLIC`
+- Central & Baltic Europe: `WINDOWS-1250`, `ISO-8859-2`, `IBM852`, `WINDOWS-1257`
+- Greek & Turkish: `WINDOWS-1253`, `ISO-8859-7`, `WINDOWS-1254`
+- Hebrew, Arabic & Thai: `WINDOWS-1255`, `WINDOWS-1256`, `ISO-8859-6`, `WINDOWS-874`
+- Optional `Match#language` populates the ISO 639-1 language code for single-language probers (`ru`, `uk`, `be`, `pl`, `cs`, `hu`, `lt`, `lv`, `el`, `tr`, `he`, `ar`, `th`, or `nil` for shared encodings such as `UTF-8`, `UTF-16*`, `UTF-32*`, `WINDOWS-1252`, `IBM437`, `IBM850`, `MACINTOSH`)
 
-Not yet built in: Central European, Greek, Turkish, CJK (can be plugged in via `Fathom::Prober`).
+Not yet built in: CJK (can be plugged in via `Fathom::Prober`).
 
 ## Labels, Aliases & Platform `iconv` Support
 
-- Canonical encoding labels follow the WHATWG Encoding Standard (uppercase, e.g. `UTF-8`, `WINDOWS-1252`, `IBM866`).
+- Canonical encoding labels follow the WHATWG Encoding Standard (uppercase, e.g. `UTF-8`, `WINDOWS-1252`, `IBM866`, `MACINTOSH`).
 - ISO/Windows pairs differing only in `0x80..0x9F` (`ISO-8859-1`/`WINDOWS-1252`, `ISO-8859-9`/`WINDOWS-1254`, `ISO-8859-13`/`WINDOWS-1257`, `TIS-620`/`WINDOWS-874`) collapse to the Windows label via `Fathom::Encoding.canonical_name`, since the Windows variant decodes both.
-- `Fathom::Encoding.iconv_name` (also exposed as `Match#iconv_name`) returns the name to pass to `String.new`, chosen to work on every supported platform. It equals the canonical label except `IBM866` → `CP866`, the only name musl accepts.
-- Detection is platform-independent: `Fathom.detect` and `Fathom.match` always return canonical labels regardless of host OS. If the host `iconv` cannot decode a detected encoding, `Fathom.decode` raises `ArgumentError` just as `String.new` does.
+- **Tie-breaking on shared bytes**: encodings whose differing codepoints do not appear in a given input score identically and resolve by prober registration order (`WINDOWS-1252` before `IBM850`/`IBM437`/`MACINTOSH`, `WINDOWS-1250` before `ISO-8859-2`, `WINDOWS-1253` before `ISO-8859-7`, `WINDOWS-1256` before `ISO-8859-6`). For example, symbol-only Western strings such as `Copyright ©…` or plain Greek text lacking `'Ά'` (`U+0386`) cannot distinguish those pairs at the byte level.
+- `Fathom::Encoding.iconv_name` (also exposed as `Match#iconv_name`) returns the name to pass to `String.new`, chosen to work on supported platforms:
+  - `IBM437` → `CP437`, `IBM850` → `CP850`, `IBM852` → `CP852`, `IBM866` → `CP866`
+  - `MACINTOSH` → `MACROMAN` on Windows, `MACINTOSH` elsewhere
+  - `X-MAC-CYRILLIC` → `CP10007` on Windows, `MACCYRILLIC` elsewhere
+  - All other canonical labels are returned as-is
+- Detection is platform-independent: `Fathom.detect` and `Fathom.match` always return canonical labels regardless of host OS. On Alpine Linux (`musl`), `musl`'s built-in `iconv` does not support `IBM852`, `MACINTOSH`, `X-MAC-CYRILLIC`, or `WINDOWS-874`; detection still succeeds, while `Fathom.decode` raises `ArgumentError` just as `String.new` does.
 
-CI decodes every built-in encoding through the platform `iconv` on Linux (glibc), Alpine (musl), macOS, and Windows (`spec/iconv_spec.cr`).
+CI decodes every supported encoding through the platform `iconv` on Linux (glibc), Alpine (musl, excluding the 4 `musl`-unsupported encodings), macOS, and Windows (`spec/iconv_spec.cr`).
 
 ## CLI & Corpus Accuracy Baseline
 
@@ -97,18 +106,20 @@ crystal run tools/fathom.cr -- --corpus                    # evaluate built-in c
 crystal run tools/fathom.cr -- --corpus --compare=icu      # compare against ICU ucsdet
 ```
 
-Baseline on `corpus/`: 27 Wikipedia articles in 9 languages (sources and license in `corpus/SOURCES.md`), encoded into every applicable encoding by `tools/gen_corpus.cr` and sliced to `64B`, `256B`, `1024B`, `4096B`, and full size. Slices of single-byte text that contain no non-ASCII bytes are skipped, since `UTF-8` is the correct answer for them.
+Baseline on `corpus/`: `202` files (`57` Wikipedia articles in 19 languages plus `1` synthetic `IBM437` sample, sources and license in `corpus/SOURCES.md`) evaluated at `64B`, `256B`, `1024B`, `4096B`, and full size (`816` slices total: `328` UTF, `488` single-byte; pure-ASCII slices of single-byte files are skipped since `UTF-8` is the right label for them).
+
+Notice that ICU `ucsdet` does not support 9 of Fathom's built-in encodings (`IBM437`, `IBM850`, `IBM852`, `IBM866`, `KOI8-U`, `MACINTOSH`, `WINDOWS-1257`, `WINDOWS-874`, `X-MAC-CYRILLIC` — 216 slices), so both the full-corpus total and the fair head-to-head subset over encodings ICU actually outputs are reported below:
 
 | Input Size | Fathom | ICU (`ucsdet`) |
 | --- | ---: | ---: |
-| `64B` | 88 / 88 (100.0%) | 66 / 88 (75.0%) |
-| `256B` | 90 / 90 (100.0%) | 81 / 90 (90.0%) |
-| `1024B` | 90 / 90 (100.0%) | 84 / 90 (93.33%) |
+| `64B` | 181 / 195 (92.82%) | 113 / 195 (57.95%) |
+| `256B` | 197 / 202 (97.52%) | 139 / 202 (68.81%) |
+| `1024B` | 197 / 201 (98.01%) | 144 / 201 (71.64%) |
 | `4096B` | 16 / 16 (100.0%) | 16 / 16 (100.0%) |
-| `full` | 90 / 90 (100.0%) | 84 / 90 (93.33%) |
-| **Overall** | **374 / 374 (100.0%)** | **331 / 374 (88.5%)** |
-
-(`0.2.0` unigram baseline was `373 / 374 (99.73%)`; language-level bigram models added in `0.3.0` resolve the remaining 64-byte `KOI8-U` vs `KOI8-R` case.)
+| `full` | 200 / 202 (99.01%) | 144 / 202 (71.29%) |
+| **Overall (all 26 encodings)** | **791 / 816 (96.94%)** | **556 / 816 (68.14%)** |
+| **Single-byte only** | **463 / 488 (94.88%)** | **234 / 488 (47.95%)** |
+| **Shared encodings only (17 encodings / 600 slices)** | **585 / 600 (97.5%)** *(SB: 257/272 = 94.49%)* | **556 / 600 (92.67%)** *(SB: 234/272 = 86.03%)* |
 
 ## Development
 
