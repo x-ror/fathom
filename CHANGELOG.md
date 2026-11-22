@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Replaced unigram single-byte scoring with quantized `64x64` language-level bigram models (`Fathom::SingleByte::LanguageModel` and `Table`) trained via `tools/train_models.cr` on disjoint Wikipedia articles (`ru`, `uk`, `be`, and balanced `western`) and projected into `src/fathom/tables.cr` by `tools/gen_tables.cr`.
+- `Fathom.detect_all` and `Fathom::Detector#detect_all` now deduplicate candidates by encoding, keeping the highest confidence per encoding.
+- Corpus accuracy improved from `373/374` (`99.73%`) to `374/374` (`100.0%`) on `64B..full` (and `529/534` → `530/534` on `16B..full`); raised `KOI8-R` precision and `KOI8-U` recall CI gate floors in `spec/accuracy_spec.cr` to `1.0`.
+
 ## [0.2.0] - 2026-11-22
 
 ### Added
