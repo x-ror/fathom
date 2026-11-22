@@ -2,6 +2,8 @@
 #   crystal run tools/gen_tables.cr > src/fathom/tables.cr
 # iconv is needed only here; the shard itself decodes nothing through it.
 
+require "../src/fathom/encoding"
+
 ENCODINGS = [
   {"WINDOWS-1252", "AccentedLatin"},
   {"WINDOWS-1251", "Frequency"},
@@ -60,8 +62,9 @@ ENCODINGS.each do |enc, mode|
   classes = [] of UInt8
   weights = [] of Int16
 
+  iconv_enc = Fathom::Encoding.iconv_name(enc)
   (0x80..0xFF).each do |b|
-    char = String.new(Bytes[b.to_u8], enc, invalid: :skip)[0]? || '\u{FFFD}'
+    char = String.new(Bytes[b.to_u8], iconv_enc, invalid: :skip)[0]? || '\u{FFFD}'
     cls = classify(char)
     classes << cls
     weights << weight_for(char, cls, mode)
