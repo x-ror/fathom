@@ -80,8 +80,8 @@ module Fathom
       matches
     end
 
-    # Reads up to `#sample_size` bytes from *io* and returns all plausible `Match` candidates
-    # sorted by descending confidence.
+    # Reads up to `#sample_size` bytes from *io* and returns all plausible `Match` candidates,
+    # deduplicated by encoding and sorted by descending confidence.
     def detect_all(io : IO) : Array(Match)
       with_sample(io) { |sample| detect_all(sample) }
     end
@@ -89,7 +89,13 @@ module Fathom
     # Detects the encoding of *bytes*, strips any leading BOM, and decodes the payload
     # to a UTF-8 `String`. Returns `nil` when *bytes* looks like binary or an unknown encoding.
     #
-    # The *invalid* option (`nil` or `:skip`) is passed through to `String.new` unchanged.
+    # An incomplete character at the very end of *bytes* (a cut multi-byte UTF-8
+    # sequence, an odd trailing UTF-16 byte, a lone high surrogate) is dropped, matching
+    # what detection accepts.
+    #
+    # The *invalid* option (`nil` or `:skip`) is passed through to `String.new` unchanged,
+    # so invalid sequences elsewhere (e.g. in tolerated corrupt UTF-8) raise `ArgumentError`
+    # unless `invalid: :skip` is given.
     def decode(bytes : Bytes, invalid : Symbol? = nil) : String?
       m = match(bytes)
       return nil unless m
@@ -101,7 +107,7 @@ module Fathom
                   bytes
                 end
 
-      String.new(payload, m.iconv_name, invalid: invalid)
+      String.new(drop_incomplete_tail(payload, m.encoding), m.iconv_name, invalid: invalid)
     end
 
     # Reads *io*, detects its encoding from up to `#sample_size` leading bytes,
@@ -115,6 +121,26 @@ module Fathom
       buffer = IO::Memory.new
       IO.copy(io, buffer)
       decode(buffer.to_slice, invalid: invalid)
+    end
+
+    private def drop_incomplete_tail(payload : Bytes, encoding : String) : Bytes
+      size = payload.size
+      keep = case encoding
+             when "UTF-8"
+               size - UTF.incomplete_tail_size(payload)
+             when "UTF-16LE", "UTF-16BE"
+               n = size & ~1
+               if n >= 2
+                 hi = encoding == "UTF-16LE" ? payload[n - 1] : payload[n - 2]
+                 n -= 2 if (0xD8_u8..0xDB_u8).includes?(hi)
+               end
+               n
+             when "UTF-32LE", "UTF-32BE"
+               size & ~3
+             else
+               size
+             end
+      payload[0, keep]
     end
 
     private def each_candidate(bytes : Bytes, & : Match ->)
@@ -143,7 +169,7 @@ module Fathom
         end
       end
 
-      if !stats.likely_binary? && UTF.valid_utf8?(sample)
+      if !stats.likely_binary? && UTF.valid_utf8?(sample, truncated: bytes.size >= @sample_size)
         yield Match.new("UTF-8", 1.0)
         return
       end

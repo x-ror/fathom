@@ -2,33 +2,39 @@ module Fathom
   # Validation and heuristic detection for UTF-8 and BOM-less UTF-16 encodings.
   module UTF
     # Returns `true` if *bytes* is valid UTF-8, allowing an incomplete multi-byte
-    # sequence cut off at the end of a truncated sample.
-    def self.valid_utf8?(bytes : Bytes) : Bool
+    # sequence cut off at the end of a truncated sample. Pass *truncated* when
+    # *bytes* is known to be a prefix of a longer input.
+    def self.valid_utf8?(bytes : Bytes, truncated : Bool = false) : Bool
       return true if Unicode.valid?(bytes)
 
+      tail = incomplete_tail_size(bytes)
+      return false if tail == 0
+
+      prefix = bytes[0, bytes.size - tail]
+      # Avoid false positives when a single trailing non-ASCII byte (like
+      # WINDOWS-1252 "caf\xE9") happens to fall in the UTF-8 lead-byte range.
+      return false unless tail > 1 || truncated || has_high_byte?(prefix)
+
+      Unicode.valid?(prefix)
+    end
+
+    # Returns the length (`1..3`) of an incomplete multi-byte UTF-8 sequence at the
+    # end of *bytes*, or `0` when *bytes* does not end inside a sequence.
+    def self.incomplete_tail_size(bytes : Bytes) : Int32
       size = bytes.size
       ptr = bytes.to_unsafe
-
-      # Check whether the trailing 1..3 bytes form a valid truncated UTF-8 sequence.
       tail_len = 1
       while tail_len <= 3 && tail_len <= size
         lead_idx = size - tail_len
         lead = ptr[lead_idx]
-
-        expected_len = utf8_sequence_length(lead)
-        if expected_len > tail_len && valid_utf8_tail?(ptr, lead_idx, tail_len, lead)
-          prefix = bytes[0, lead_idx]
-          # Avoid false positives when a single trailing non-ASCII byte (like
-          # WINDOWS-1252 "caf\xE9") happens to fall in the UTF-8 lead-byte range.
-          if tail_len > 1 || has_high_byte?(prefix)
-            return Unicode.valid?(prefix)
-          end
+        return 0 if lead < 0x80_u8
+        if lead >= 0xC0_u8
+          valid = utf8_sequence_length(lead) > tail_len && valid_utf8_tail?(ptr, lead_idx, tail_len, lead)
+          return valid ? tail_len : 0
         end
-
         tail_len += 1
       end
-
-      false
+      0
     end
 
     # Detects BOM-less UTF-16LE or UTF-16BE from null-byte parity and code-unit validation.
@@ -110,9 +116,9 @@ module Fathom
         end
       end
 
-      return nil if invalid_bytes == 0 || valid_sequences < invalid_bytes * 10
+      return nil if invalid_bytes == 0 || valid_sequences < invalid_bytes.to_i64 * 10
 
-      ratio = valid_sequences.to_f64 / (valid_sequences + invalid_bytes * 4).to_f64
+      ratio = valid_sequences.to_f64 / (valid_sequences + invalid_bytes.to_i64 * 4).to_f64
       confidence = (0.55 + 0.39 * ratio).clamp(0.5, 0.94)
       Match.new("UTF-8", confidence)
     end

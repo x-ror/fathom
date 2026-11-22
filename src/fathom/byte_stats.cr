@@ -37,9 +37,11 @@ module Fathom
       @high_bytes == 0 && @null_bytes == 0 && @control_bytes == 0
     end
 
-    # Returns `true` if more than 5% of the sample consists of binary control bytes.
+    # Returns `true` if more than 5% of the sample consists of binary control bytes,
+    # or more than 25% are NUL bytes (a single NUL, such as a C string terminator, is allowed).
     def likely_binary? : Bool
-      @size > 0 && @control_bytes.to_i64 * 20 > @size
+      return false if @size == 0
+      @control_bytes.to_i64 * 20 > @size || (@null_bytes > 1 && @null_bytes.to_i64 * 4 > @size)
     end
 
     # Analyzes *bytes* in a single tight pass without heap allocations.

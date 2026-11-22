@@ -42,13 +42,13 @@ module Fathom
     detector_for(sample_size).match(io)
   end
 
-  # Returns all plausible `Match` candidates for *bytes*, sorted by descending confidence.
+  # Returns all plausible `Match` candidates for *bytes*, deduplicated by encoding and sorted by descending confidence.
   def self.detect_all(bytes : Bytes) : Array(Match)
     Detector.default.detect_all(bytes)
   end
 
-  # Reads up to *sample_size* bytes from *io* and returns all plausible `Match` candidates
-  # sorted by descending confidence.
+  # Reads up to *sample_size* bytes from *io* and returns all plausible `Match` candidates,
+  # deduplicated by encoding and sorted by descending confidence.
   def self.detect_all(io : IO, sample_size : Int32 = Detector::DEFAULT_SAMPLE_SIZE) : Array(Match)
     detector_for(sample_size).detect_all(io)
   end
