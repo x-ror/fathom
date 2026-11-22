@@ -125,10 +125,11 @@ describe Fathom do
   end
 
   describe ".detect_all" do
-    it "returns candidates sorted by descending confidence" do
+    it "returns candidates sorted by descending confidence without duplicate encodings" do
       matches = Fathom.detect_all(RU.encode("WINDOWS-1251"))
       matches.should_not be_empty
       matches.first.encoding.should eq "WINDOWS-1251"
+      matches.map(&.encoding).uniq!.size.should eq matches.size
       matches.each_cons(2) do |(a, b)|
         a.confidence.should be >= b.confidence
       end
@@ -263,6 +264,16 @@ describe Fathom do
       # Word-final "è"/"à" (0xE8/0xE0) are frequent Cyrillic letters in WINDOWS-1251.
       it_text = "La fotosintesi è un processo per mezzo del quale la città e la società producono più energia."
       Fathom.detect(it_text.encode("WINDOWS-1252")).should eq "WINDOWS-1252"
+    end
+  end
+
+  describe "bigram disambiguation" do
+    it "separates short Ukrainian without unique letters in KOI8-U from Russian KOI8-R" do
+      uk_no_unique = "Тарас Григорович Шевченко (25 лютого (9 березня) 1814, село Моринці)"
+      detect(uk_no_unique, "KOI8-U").should eq "KOI8-U"
+
+      ru_short = "Александр Сергеевич Пушкин (26 мая (6 июня) 1799, Москва)"
+      detect(ru_short, "KOI8-R").should eq "KOI8-R"
     end
   end
 
