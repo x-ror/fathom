@@ -202,6 +202,7 @@ describe Fathom do
       Fathom::Encoding.canonical_name("ascii").should eq "WINDOWS-1252"
       Fathom::Encoding.canonical_name("iso-8859-1").should eq "WINDOWS-1252"
       Fathom::Encoding.canonical_name("latin1").should eq "WINDOWS-1252"
+      Fathom::Encoding.canonical_name("ISO-8859-8").should eq "WINDOWS-1255"
       Fathom::Encoding.canonical_name("ISO-8859-9").should eq "WINDOWS-1254"
       Fathom::Encoding.canonical_name("ISO-8859-13").should eq "WINDOWS-1257"
       Fathom::Encoding.canonical_name("TIS-620").should eq "WINDOWS-874"
@@ -444,6 +445,12 @@ describe Fathom do
       copyright = Fathom.match("Copyright © 2024 Acme Corp. All rights reserved.".encode("WINDOWS-1252")).should_not be_nil
       copyright.encoding.should eq "WINDOWS-1252"
       copyright.confidence.should be >= 0.55
+    end
+
+    it "detects visual-order Hebrew as WINDOWS-1255 with Hebrew language metadata" do
+      match = Fathom.match(".\xed\xe9\xe5\xe5\xfa \xe3\xe5\xe3\xe9\xf7 \xef\xe7\xe1\xee \xe5\xe4\xe6".to_slice).should_not be_nil
+      match.encoding.should eq "WINDOWS-1255"
+      match.language.should eq "he"
     end
 
     it "marks undefined WINDOWS-874 bytes (0xDB..0xDE, 0xFC..0xFF) as CharKind::Junk" do

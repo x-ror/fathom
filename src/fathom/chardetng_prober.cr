@@ -40,43 +40,110 @@ module Fathom
         guess, max = detector.result
 
         # Best score per supported canonical encoding, in candidate order.
-        scores = {} of String => Int64
+        entries = StaticArray({String, Int64}, 26).new({"", 0_i64})
+        count = 0
+        ptr = entries.to_unsafe
+
         detector.each_score do |name, score|
           encoding = Encoding.canonical_name(name)
           next unless Encoding::SUPPORTED.includes?(encoding)
-          scores[encoding] = score if !scores.has_key?(encoding) || score > scores[encoding]
+
+          found = false
+          i = 0
+          while i < count
+            entry = ptr[i]
+            if entry[0] == encoding
+              ptr[i] = {encoding, score} if score > entry[1]
+              found = true
+              break
+            end
+            i += 1
+          end
+          unless found
+            ptr[count] = {encoding, score}
+            count += 1
+          end
         end
-        return if scores.empty?
+        return if count == 0
 
         winner = Encoding.canonical_name(guess)
-        unless max > 0 && scores[winner]? == max
+        winner_score = score_for(ptr, count, winner)
+        if max > 0 && winner_score
+          max = winner_score if winner_score > max
+        else
           # Unsupported or non-scoring guess: fall back to the best supported candidate.
-          best = scores.max_of { |_, score| score }
+          best_idx = 0
+          best = ptr[0][1]
+          i = 1
+          while i < count
+            if ptr[i][1] > best
+              best = ptr[i][1]
+              best_idx = i
+            end
+            i += 1
+          end
+
           if best > 0
-            winner = scores.find! { |_, score| score == best }[0]
+            winner = ptr[best_idx][0]
             max = best
           else
-            winner = scores.has_key?(DEFAULT_ENCODING) ? DEFAULT_ENCODING : scores.find! { |_, score| score == best }[0]
-            confidence = scores[winner] == 0 ? TIE_CONFIDENCE : WEAK_CONFIDENCE
+            if default_score = score_for(ptr, count, DEFAULT_ENCODING)
+              winner = DEFAULT_ENCODING
+              win_score = default_score
+            else
+              winner = ptr[best_idx][0]
+              win_score = best
+            end
+            confidence = win_score == 0 ? TIE_CONFIDENCE : WEAK_CONFIDENCE
             yield Match.new(winner, confidence, language: language(winner, bytes, stats))
             return
           end
         end
 
         runner_up = 0_i64
-        scores.each { |encoding, score| runner_up = score if encoding != winner && score > runner_up }
+        i = 0
+        while i < count
+          encoding, score = ptr[i]
+          runner_up = score if encoding != winner && score > runner_up
+          i += 1
+        end
         margin = (max - runner_up).to_f64
         confidence = TIE_CONFIDENCE + (0.99 - TIE_CONFIDENCE) * margin / (margin + MARGIN_SCALE)
         yield Match.new(winner, confidence, language: language(winner, bytes, stats))
 
-        scores.each do |encoding, score|
-          next if encoding == winner || score <= 0
-          yield Match.new(encoding, 0.49 * score / max)
+        i = 0
+        while i < count
+          encoding, score = ptr[i]
+          if encoding != winner && score > 0
+            yield Match.new(encoding, 0.49 * score / max)
+          end
+          i += 1
         end
+      end
+
+      private def score_for(ptr : Pointer({String, Int64}), count : Int32, encoding : String) : Int64?
+        i = 0
+        while i < count
+          return ptr[i][1] if ptr[i][0] == encoding
+          i += 1
+        end
+        nil
       end
 
       # Language of the best-matching single-language bigram model for *encoding*, if any.
       private def language(encoding : String, bytes : Bytes, stats : ByteStats) : String?
+        case encoding
+        when "KOI8-R", "IBM866"           then return "ru"
+        when "KOI8-U"                     then return "uk"
+        when "WINDOWS-1253", "ISO-8859-7" then return "el"
+        when "WINDOWS-1254"               then return "tr"
+        when "WINDOWS-1255"               then return "he"
+        when "WINDOWS-1256", "ISO-8859-6" then return "ar"
+        when "WINDOWS-874"                then return "th"
+        when "WINDOWS-1252", "IBM437", "IBM850", "MACINTOSH"
+          return nil
+        end
+
         best : Match? = nil
         SingleByte::PROBERS.each do |table|
           next unless table.is_a?(SingleByte::Table) && table.encoding == encoding && table.model.language

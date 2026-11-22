@@ -37,7 +37,7 @@ module Fathom
 
     # Byte classes and pairwise class scores for one single-byte encoding.
     # :nodoc:
-    struct SingleByteData
+    class SingleByteData
       getter encoding : String
 
       def initialize(@encoding : String, @lower : Bytes, @upper : Bytes, @probabilities : Bytes, @ascii : Int32, @non_ascii : Int32)
@@ -59,6 +59,7 @@ module Fathom
         caseless_class > lower_bound && caseless_class < @ascii + @non_ascii
       end
 
+      @[AlwaysInline]
       def score(current_class : UInt8, previous_class : UInt8, windows_1256 : Bool) : Int64
         current = current_class.to_i32
         previous = previous_class.to_i32
@@ -67,7 +68,7 @@ module Fathom
           if previous < stored_boundary
             # Both below
             if index = compute_index(previous, current)
-              b = @probabilities[index]
+              b = @probabilities.unsafe_fetch(index)
               b == 255 ? IMPLAUSIBILITY_PENALTY : b.to_i64
             else
               0_i64
@@ -177,84 +178,14 @@ module Fathom
     # :nodoc:
     X_MAC_CYRILLIC_DATA = SingleByteData.new("X-MAC-CYRILLIC", NON_LATIN_ASCII, X_MAC_CYRILLIC, CYRILLIC, 2, 44)
 
-    # A candidate encoding with a running score; `nil` score means disqualified.
-    # :nodoc:
-    abstract class Candidate
-      getter score : Int64? = 0_i64
-
-      # Prior against this candidate, subtracted from its final score (Fathom extension).
-      property handicap = 0_i64
-
-      abstract def encoding : String
-
-      # Score as seen by `Detector#guess` (upstream `Candidate::score` with a generic TLD).
-      def guess_score : Int64?
-        (score = qualified_score) ? score - @handicap : nil
-      end
-
-      protected def qualified_score : Int64?
-        @score
-      end
-
-      def feed(buffer : Bytes, last : Bool) : Nil
-        return unless old = @score
-        @score = (delta = feed_inner(buffer, last)) ? old + delta : nil
-      end
-
-      protected abstract def feed_inner(buffer : Bytes, last : Bool) : Int64?
-    end
-
-    # :nodoc:
-    abstract class SingleByteCandidate < Candidate
-      @prev = 0_u8
-
-      def initialize(@data : SingleByteData)
-      end
-
-      def encoding : String
-        @data.encoding
-      end
-
-      protected def feed_inner(buffer : Bytes, last : Bool) : Int64?
-        score = feed_bytes(buffer) || return nil
-        return score unless last
-        # Treat EOF as space-like
-        tail = feed_bytes(SPACE) || return nil
-        score + tail
-      end
-
-      protected abstract def feed_bytes(buffer : Bytes) : Int64?
-    end
-
-    # :nodoc:
-    abstract class WordTrackingCandidate < SingleByteCandidate
-      @prev_ascii = true
-      @current_word_len = 0_i64
-      @longest_word = 0_i64
-
-      protected def qualified_score : Int64?
-        @longest_word < 2 ? nil : @score
-      end
-
-      @[AlwaysInline]
-      protected def track_word(non_ascii_alphabetic : Bool) : Nil
-        if non_ascii_alphabetic
-          @current_word_len += 1
-        else
-          @longest_word = @current_word_len if @current_word_len > @longest_word
-          @current_word_len = 0_i64
-        end
-      end
-    end
-
-    private enum LatinCaseState
+    private enum LatinCaseState : UInt8
       Space
       Upper
       Lower
       AllCaps
     end
 
-    private enum NonLatinCaseState
+    private enum NonLatinCaseState : UInt8
       Space
       Upper
       Lower
@@ -263,96 +194,7 @@ module Fathom
       Mix
     end
 
-    # Cyrillic and Greek.
-    # :nodoc:
-    class NonLatinCasedCandidate < WordTrackingCandidate
-      @case_state = NonLatinCaseState::Space
-      @prev_was_a0 = false
-      @ibm866 : Bool
-      @koi8_u : Bool
-
-      def initialize(@data : SingleByteData)
-        @ibm866 = data.encoding == "IBM866"
-        # KOI8-R shares KOI8-U's inverted case layout (Fathom extension).
-        @koi8_u = data.encoding.in?("KOI8-U", "KOI8-R")
-      end
-
-      protected def feed_bytes(buffer : Bytes) : Int64?
-        score = 0_i64
-        buffer.each do |b|
-          klass = @data.classify(b)
-          return nil if klass == 255
-          caseless_class = klass & 0x7F
-
-          ascii = b < 0x80
-          ascii_pair = @prev_ascii && ascii
-
-          non_ascii_alphabetic = @data.non_latin_alphabetic?(caseless_class, false)
-
-          # ASCII doesn't participate in non-Latin casing.
-          if caseless_class == LATIN_LETTER
-            # Latin: mark this word as a mess.
-            @case_state = NonLatinCaseState::Mix
-          elsif !non_ascii_alphabetic
-            # Space
-            case @case_state
-            when .upper_lower?
-              # Intentionally applied only once per word.
-              score += NON_LATIN_CAPITALIZATION_BONUS
-            when .all_caps?
-              # Intentionally applied only once per word, and only to KOI8-U.
-              score += NON_LATIN_ALL_CAPS_PENALTY if @koi8_u
-            when .mix?
-              # Per letter
-              score += NON_LATIN_MIXED_CASE_PENALTY * @current_word_len
-            else
-            end
-            @case_state = NonLatinCaseState::Space
-          elsif (klass >> 7) == 0
-            # Lower case
-            case @case_state
-            when .space?    then @case_state = NonLatinCaseState::Lower
-            when .upper?    then @case_state = NonLatinCaseState::UpperLower
-            when .all_caps? then @case_state = NonLatinCaseState::Mix
-            else
-            end
-          else
-            # Upper case
-            case @case_state
-            when .space?                then @case_state = NonLatinCaseState::Upper
-            when .upper?                then @case_state = NonLatinCaseState::AllCaps
-            when .lower?, .upper_lower? then @case_state = NonLatinCaseState::Mix
-            else
-            end
-          end
-
-          track_word(non_ascii_alphabetic)
-
-          is_a0 = b == 0xA0
-          unless ascii_pair
-            # 0xA0 is no-break space in many other encodings, so avoid
-            # assigning score to IBM866 when 0xA0 occurs next to itself
-            # or a space-like byte.
-            unless @ibm866 && ((is_a0 && (@prev_was_a0 || @prev == 0)) || (caseless_class == 0 && @prev_was_a0))
-              score += @data.score(caseless_class, @prev, false)
-            end
-
-            if @prev == LATIN_LETTER && non_ascii_alphabetic
-              score += LATIN_ADJACENCY_PENALTY
-            elsif caseless_class == LATIN_LETTER && @data.non_latin_alphabetic?(@prev, false)
-              score += LATIN_ADJACENCY_PENALTY
-            end
-          end
-
-          @prev_ascii = ascii
-          @prev = caseless_class
-          @prev_was_a0 = is_a0
-        end
-        score
-      end
-    end
-
-    private enum OrdinalState
+    private enum OrdinalState : UInt8
       Other
       Space
       PeriodAfterN
@@ -368,40 +210,252 @@ module Fathom
       Copyright
     end
 
+    private enum CandidateKind : UInt8
+      Latin
+      NonLatinCased
+      ArabicFrench
+      Caseless
+      Logical
+      Visual
+    end
+
     # :nodoc:
-    class LatinCandidate < SingleByteCandidate
-      @case_state = LatinCaseState::Space
-      @prev_non_ascii = 0_i64
-      @ordinal_state = OrdinalState::Space # Used only when `@windows_1252`
-      @prev_high_letter = false            # Used only with `@twins`
-      @punctuation_pending = false
+    protected def self.ascii_punctuation?(byte : UInt8) : Bool
+      byte.in?('.'.ord, ','.ord, ':'.ord, ';'.ord, '?'.ord, '!'.ord)
+    end
+
+    # Value-type single-byte candidate with a running score; `nil` score means disqualified.
+    # :nodoc:
+    struct Candidate
+      getter score : Int64? = 0_i64
+
+      # Prior against this candidate, subtracted from its final score (Fathom extension).
+      property handicap : Int64
 
       # Non-ASCII space-like bytes other than the apostrophe 0x92 found between
       # two letters ("acci—n"). Doesn't affect the score; a twin with any of
       # these doesn't read the input plausibly (Fathom extension).
       getter glued_punctuation = 0
 
-      # *twins* (Fathom extension): common Latin encodings that this rarer one
-      # may not outscore while any of them reads the input plausibly: a score of
-      # zero or more (its non-ASCII bytes are at worst neutral punctuation) and
-      # no `glued_punctuation`.
-      # Such candidates are also penalized for non-ASCII letters glued to ASCII
-      # digits ("50ø" for CP437 "50¢"), which upstream scores as neutral.
-      def initialize(@data : SingleByteData, @windows_1252 : Bool = false, @twins : Array(LatinCandidate)? = nil)
+      getter plausible_punctuation = 0_i64
+
+      @prev = 0_u8
+      @prev_ascii = true
+      @current_word_len = 0_i64
+      @longest_word = 0_i64
+      @non_latin_case_state = NonLatinCaseState::Space
+      @prev_was_a0 = false
+      @ibm866 : Bool
+      @koi8_u : Bool
+      @latin_case_state = LatinCaseState::Space
+      @prev_non_ascii = 0_i64
+      @ordinal_state = OrdinalState::Space
+      @prev_high_letter = false
+      @punctuation_pending = false
+      @prev_punctuation = false
+
+      def initialize(
+        @kind : CandidateKind,
+        @data : SingleByteData,
+        @windows_1252 : Bool = false,
+        @has_twins : Bool = false,
+        @handicap : Int64 = 0_i64,
+      )
+        @ibm866 = @kind.non_latin_cased? && @data.encoding == "IBM866"
+        # KOI8-R shares KOI8-U's inverted case layout (Fathom extension).
+        @koi8_u = @kind.non_latin_cased? && @data.encoding.in?("KOI8-U", "KOI8-R")
       end
 
-      protected def qualified_score : Int64?
-        if twins = @twins
-          return nil if twins.any? { |twin| (score = twin.score) && score >= 0 && twin.glued_punctuation == 0 }
+      def self.latin(data : SingleByteData, windows_1252 : Bool = false, has_twins : Bool = false, handicap : Int64 = 0_i64) : Candidate
+        new(CandidateKind::Latin, data, windows_1252: windows_1252, has_twins: has_twins, handicap: handicap)
+      end
+
+      def self.non_latin_cased(data : SingleByteData, handicap : Int64 = 0_i64) : Candidate
+        new(CandidateKind::NonLatinCased, data, handicap: handicap)
+      end
+
+      def self.arabic_french(data : SingleByteData) : Candidate
+        new(CandidateKind::ArabicFrench, data)
+      end
+
+      def self.caseless(data : SingleByteData) : Candidate
+        new(CandidateKind::Caseless, data)
+      end
+
+      def self.logical(data : SingleByteData) : Candidate
+        new(CandidateKind::Logical, data)
+      end
+
+      def self.visual(data : SingleByteData) : Candidate
+        new(CandidateKind::Visual, data)
+      end
+
+      def encoding : String
+        @data.encoding
+      end
+
+      def plausible_twin? : Bool
+        (score = @score) ? score >= 0 && @glued_punctuation == 0 : false
+      end
+
+      # Score as seen by `Detector#guess` (upstream `Candidate::score` with a generic TLD).
+      def guess_score(latin_twin_plausible : Bool = false) : Int64?
+        (score = qualified_score(latin_twin_plausible)) ? score - @handicap : nil
+      end
+
+      def qualified_score(latin_twin_plausible : Bool = false) : Int64?
+        if @kind.latin?
+          return nil if @has_twins && latin_twin_plausible
+          @score
+        else
+          @longest_word < 2 ? nil : @score
         end
-        @score
+      end
+
+      def feed(buffer : Bytes, last : Bool) : Nil
+        return unless old = @score
+        delta = feed_bytes(buffer) || begin
+          @score = nil
+          return
+        end
+        if last
+          # Treat EOF as space-like
+          tail = feed_bytes(SPACE) || begin
+            @score = nil
+            return
+          end
+          delta += tail
+        end
+        @score = old + delta
+      end
+
+      private def feed_bytes(buffer : Bytes) : Int64?
+        case @kind
+        in .latin?           then feed_latin(buffer)
+        in .non_latin_cased? then feed_non_latin_cased(buffer)
+        in .arabic_french?   then feed_arabic_french(buffer)
+        in .caseless?        then feed_caseless(buffer)
+        in .logical?         then feed_logical(buffer)
+        in .visual?          then feed_visual(buffer)
+        end
+      end
+
+      @[AlwaysInline]
+      private def track_word(non_ascii_alphabetic : Bool) : Nil
+        if non_ascii_alphabetic
+          @current_word_len += 1
+        else
+          @longest_word = @current_word_len if @current_word_len > @longest_word
+          @current_word_len = 0_i64
+        end
+      end
+
+      @[AlwaysInline]
+      private def latin_adjacency_penalty(caseless_class : UInt8, non_ascii_alphabetic : Bool, prev_non_ascii_alphabetic : Bool) : Int64
+        if (@prev == LATIN_LETTER && non_ascii_alphabetic) || (caseless_class == LATIN_LETTER && prev_non_ascii_alphabetic)
+          LATIN_ADJACENCY_PENALTY
+        else
+          0_i64
+        end
+      end
+
+      @[AlwaysInline]
+      private def step_latin_case(klass : UInt8, ascii_pair : Bool) : Int64
+        if (klass >> 7) == 0
+          penalty = @latin_case_state.all_caps? && !ascii_pair ? IMPLAUSIBLE_LATIN_CASE_TRANSITION_PENALTY : 0_i64
+          @latin_case_state = LatinCaseState::Lower
+          penalty
+        else
+          case @latin_case_state
+          in .space?
+            @latin_case_state = LatinCaseState::Upper
+            0_i64
+          in .upper?, .all_caps?
+            @latin_case_state = LatinCaseState::AllCaps
+            0_i64
+          in .lower?
+            @latin_case_state = LatinCaseState::Upper
+            ascii_pair ? 0_i64 : IMPLAUSIBLE_LATIN_CASE_TRANSITION_PENALTY
+          end
+        end
+      end
+
+      # Cyrillic and Greek.
+      private def feed_non_latin_cased(buffer : Bytes) : Int64?
+        score = 0_i64
+        buffer.each do |b|
+          klass = @data.classify(b)
+          return nil if klass == 255
+          caseless_class = klass & 0x7F
+
+          ascii = b < 0x80
+          ascii_pair = @prev_ascii && ascii
+
+          non_ascii_alphabetic = @data.non_latin_alphabetic?(caseless_class, false)
+
+          # ASCII doesn't participate in non-Latin casing.
+          if caseless_class == LATIN_LETTER
+            # Latin: mark this word as a mess.
+            @non_latin_case_state = NonLatinCaseState::Mix
+          elsif !non_ascii_alphabetic
+            # Space
+            case @non_latin_case_state
+            when .upper_lower?
+              # Intentionally applied only once per word.
+              score += NON_LATIN_CAPITALIZATION_BONUS
+            when .all_caps?
+              # Intentionally applied only once per word, and only to KOI8-U.
+              score += NON_LATIN_ALL_CAPS_PENALTY if @koi8_u
+            when .mix?
+              # Per letter
+              score += NON_LATIN_MIXED_CASE_PENALTY * @current_word_len
+            else
+            end
+            @non_latin_case_state = NonLatinCaseState::Space
+          elsif (klass >> 7) == 0
+            # Lower case
+            case @non_latin_case_state
+            when .space?    then @non_latin_case_state = NonLatinCaseState::Lower
+            when .upper?    then @non_latin_case_state = NonLatinCaseState::UpperLower
+            when .all_caps? then @non_latin_case_state = NonLatinCaseState::Mix
+            else
+            end
+          else
+            # Upper case
+            case @non_latin_case_state
+            when .space?                then @non_latin_case_state = NonLatinCaseState::Upper
+            when .upper?                then @non_latin_case_state = NonLatinCaseState::AllCaps
+            when .lower?, .upper_lower? then @non_latin_case_state = NonLatinCaseState::Mix
+            else
+            end
+          end
+
+          track_word(non_ascii_alphabetic)
+
+          is_a0 = b == 0xA0
+          unless ascii_pair
+            # 0xA0 is no-break space in many other encodings, so avoid
+            # assigning score to IBM866 when 0xA0 occurs next to itself
+            # or a space-like byte.
+            unless @ibm866 && ((is_a0 && (@prev_was_a0 || @prev == 0)) || (caseless_class == 0 && @prev_was_a0))
+              score += @data.score(caseless_class, @prev, false)
+            end
+
+            score += latin_adjacency_penalty(caseless_class, non_ascii_alphabetic, @data.non_latin_alphabetic?(@prev, false))
+          end
+
+          @prev_ascii = ascii
+          @prev = caseless_class
+          @prev_was_a0 = is_a0
+        end
+        score
       end
 
       private def roman?(caseless_class : UInt8) : Bool
         caseless_class == 9 || caseless_class == 22 || caseless_class == 24 # I, V, X
       end
 
-      protected def feed_bytes(buffer : Bytes) : Int64?
+      private def feed_latin(buffer : Bytes) : Int64?
         score = 0_i64
         buffer.each do |b|
           klass = @data.classify(b)
@@ -418,23 +472,13 @@ module Fathom
                    else              -200_i64
                    end
 
-          if !@data.latin_alphabetic?(caseless_class)
-            @case_state = LatinCaseState::Space
-          elsif (klass >> 7) == 0
+          letter = @data.latin_alphabetic?(caseless_class)
+          if !letter
+            @latin_case_state = LatinCaseState::Space
+          else
             # Penalizing lower case after two upper case is important for
             # avoiding misdetecting windows-1250 as windows-1252 (byte 0x9F).
-            score += IMPLAUSIBLE_LATIN_CASE_TRANSITION_PENALTY if @case_state.all_caps? && !ascii_pair
-            @case_state = LatinCaseState::Lower
-          else
-            case @case_state
-            when .space?
-              @case_state = LatinCaseState::Upper
-            when .upper?, .all_caps?
-              @case_state = LatinCaseState::AllCaps
-            when .lower?
-              score += IMPLAUSIBLE_LATIN_CASE_TRANSITION_PENALTY unless ascii_pair
-              @case_state = LatinCaseState::Upper
-            end
+            score += step_latin_case(klass, ascii_pair)
           end
 
           # Treat pairing space-like, which can be non-ASCII, with ASCII as
@@ -446,12 +490,11 @@ module Fathom
 
           score += step_ordinal(b, caseless_class) if @windows_1252
 
-          letter = @data.latin_alphabetic?(caseless_class)
           @glued_punctuation += 1 if @punctuation_pending && letter
           @punctuation_pending = !ascii && caseless_class == 0 && b != 0x92 && @data.latin_alphabetic?(@prev)
 
-          if @twins
-            high_letter = !ascii && @data.latin_alphabetic?(caseless_class)
+          if @has_twins
+            high_letter = !ascii && letter
             if (high_letter && @prev == ASCII_DIGIT) || (@prev_high_letter && caseless_class == ASCII_DIGIT)
               score += IMPLAUSIBILITY_PENALTY
             end
@@ -571,14 +614,9 @@ module Fathom
         end
         0_i64
       end
-    end
 
-    # windows-1256: Arabic with French case handling.
-    # :nodoc:
-    class ArabicFrenchCandidate < WordTrackingCandidate
-      @case_state = LatinCaseState::Space
-
-      protected def feed_bytes(buffer : Bytes) : Int64?
+      # windows-1256: Arabic with French case handling.
+      private def feed_arabic_french(buffer : Bytes) : Int64?
         score = 0_i64
         buffer.each do |b|
           klass = @data.classify(b)
@@ -590,20 +628,9 @@ module Fathom
 
           if caseless_class != LATIN_LETTER
             # We compute case penalties for French only
-            @case_state = LatinCaseState::Space
-          elsif (klass >> 7) == 0
-            score += IMPLAUSIBLE_LATIN_CASE_TRANSITION_PENALTY if @case_state.all_caps? && !ascii_pair
-            @case_state = LatinCaseState::Lower
+            @latin_case_state = LatinCaseState::Space
           else
-            case @case_state
-            when .space?
-              @case_state = LatinCaseState::Upper
-            when .upper?, .all_caps?
-              @case_state = LatinCaseState::AllCaps
-            when .lower?
-              score += IMPLAUSIBLE_LATIN_CASE_TRANSITION_PENALTY unless ascii_pair
-              @case_state = LatinCaseState::Upper
-            end
+            score += step_latin_case(klass, ascii_pair)
           end
 
           # Count only Arabic word length and ignore French
@@ -612,12 +639,7 @@ module Fathom
 
           unless ascii_pair
             score += @data.score(caseless_class, @prev, true)
-
-            if @prev == LATIN_LETTER && non_ascii_alphabetic
-              score += LATIN_ADJACENCY_PENALTY
-            elsif caseless_class == LATIN_LETTER && @data.non_latin_alphabetic?(@prev, true)
-              score += LATIN_ADJACENCY_PENALTY
-            end
+            score += latin_adjacency_penalty(caseless_class, non_ascii_alphabetic, @data.non_latin_alphabetic?(@prev, true))
           end
 
           @prev_ascii = ascii
@@ -625,12 +647,9 @@ module Fathom
         end
         score
       end
-    end
 
-    # Thai and ISO-8859-6 Arabic.
-    # :nodoc:
-    class CaselessCandidate < WordTrackingCandidate
-      protected def feed_bytes(buffer : Bytes) : Int64?
+      # Thai and ISO-8859-6 Arabic.
+      private def feed_caseless(buffer : Bytes) : Int64?
         score = 0_i64
         buffer.each do |b|
           klass = @data.classify(b)
@@ -645,12 +664,7 @@ module Fathom
 
           unless ascii_pair
             score += @data.score(caseless_class, @prev, false)
-
-            if @prev == LATIN_LETTER && non_ascii_alphabetic
-              score += LATIN_ADJACENCY_PENALTY
-            elsif caseless_class == LATIN_LETTER && @data.non_latin_alphabetic?(@prev, false)
-              score += LATIN_ADJACENCY_PENALTY
-            end
+            score += latin_adjacency_penalty(caseless_class, non_ascii_alphabetic, @data.non_latin_alphabetic?(@prev, false))
           end
 
           @prev_ascii = ascii
@@ -658,19 +672,9 @@ module Fathom
         end
         score
       end
-    end
 
-    # :nodoc:
-    def self.ascii_punctuation?(byte : UInt8) : Bool
-      byte.in?('.'.ord, ','.ord, ':'.ord, ';'.ord, '?'.ord, '!'.ord)
-    end
-
-    # Logical-order Hebrew (windows-1255).
-    # :nodoc:
-    class LogicalCandidate < WordTrackingCandidate
-      getter plausible_punctuation = 0_i64
-
-      protected def feed_bytes(buffer : Bytes) : Int64?
+      # Logical-order Hebrew (windows-1255).
+      private def feed_logical(buffer : Bytes) : Int64?
         score = 0_i64
         buffer.each do |b|
           klass = @data.classify(b)
@@ -691,11 +695,7 @@ module Fathom
               @plausible_punctuation += 1
             end
 
-            if @prev == LATIN_LETTER && non_ascii_alphabetic
-              score += LATIN_ADJACENCY_PENALTY
-            elsif caseless_class == LATIN_LETTER && prev_non_ascii_alphabetic
-              score += LATIN_ADJACENCY_PENALTY
-            end
+            score += latin_adjacency_penalty(caseless_class, non_ascii_alphabetic, prev_non_ascii_alphabetic)
           end
 
           @prev_ascii = ascii
@@ -703,15 +703,9 @@ module Fathom
         end
         score
       end
-    end
 
-    # Visual-order Hebrew (ISO-8859-8).
-    # :nodoc:
-    class VisualCandidate < WordTrackingCandidate
-      getter plausible_punctuation = 0_i64
-      @prev_punctuation = false
-
-      protected def feed_bytes(buffer : Bytes) : Int64?
+      # Visual-order Hebrew (ISO-8859-8).
+      private def feed_visual(buffer : Bytes) : Int64?
         score = 0_i64
         buffer.each do |b|
           klass = @data.classify(b)
@@ -729,11 +723,7 @@ module Fathom
 
             @plausible_punctuation += 1 if non_ascii_alphabetic && @prev_punctuation
 
-            if @prev == LATIN_LETTER && non_ascii_alphabetic
-              score += LATIN_ADJACENCY_PENALTY
-            elsif caseless_class == LATIN_LETTER && @data.non_latin_alphabetic?(@prev, false)
-              score += LATIN_ADJACENCY_PENALTY
-            end
+            score += latin_adjacency_penalty(caseless_class, non_ascii_alphabetic, @data.non_latin_alphabetic?(@prev, false))
           end
 
           @prev_ascii = ascii
@@ -747,7 +737,8 @@ module Fathom
     # Incremental UTF-8 validator (WHATWG / encoding_rs rules: no overlongs,
     # surrogates or code points above U+10FFFF; truncation at EOF is malformed).
     # :nodoc:
-    class Utf8Candidate < Candidate
+    struct Utf8Candidate
+      getter score : Int64? = 0_i64
       @need = 0
       @lower = 0x80_u8
       @upper = 0xBF_u8
@@ -756,7 +747,8 @@ module Fathom
         "UTF-8"
       end
 
-      protected def feed_inner(buffer : Bytes, last : Bool) : Int64?
+      def feed(buffer : Bytes, last : Bool) : Nil
+        return unless @score
         buffer.each do |b|
           if @need == 0
             next if b < 0x80
@@ -768,16 +760,21 @@ module Fathom
             when 0xF0                   then @need = 3; @lower = 0x90_u8
             when 0xF1..0xF3             then @need = 3
             when 0xF4                   then @need = 3; @upper = 0x8F_u8
-            else                             return nil
+            else
+              @score = nil
+              return
             end
           else
-            return nil unless @lower <= b <= @upper
+            unless @lower <= b <= @upper
+              @score = nil
+              return
+            end
             @lower = 0x80_u8
             @upper = 0xBF_u8
             @need -= 1
           end
         end
-        last && @need > 0 ? nil : 0_i64
+        @score = nil if last && @need > 0
       end
     end
 
@@ -796,16 +793,21 @@ module Fathom
     # detector.feed(bytes, last: true)
     # detector.guess # => "WINDOWS-1252"
     # ```
-    class Detector
+    struct Detector
       # Prior against the rare extension encodings, so short ambiguous input
       # stays with the common ones (Fathom extension).
       RARE_HANDICAP = 100_i64
 
+      private WIN1252_IDX  = 0
+      private WIN1250_IDX  = 2
+      private ISO88592_IDX = 3
+      private LOGICAL_IDX  = 8
+
       @utf8 = Utf8Candidate.new
-      @visual = VisualCandidate.new(ISO_8859_8_DATA)
-      @logical = LogicalCandidate.new(WINDOWS_1255_DATA)
+      @visual = Candidate.visual(ISO_8859_8_DATA)
       # Upstream candidate order (minus CJK); ties go to the earlier candidate.
-      @normal : Array(Candidate)
+      @normal : StaticArray(Candidate, 25)
+      @normal_len : Int32
       @non_ascii_seen = 0_i64
       @esc_seen = false
       @closed = false
@@ -817,39 +819,44 @@ module Fathom
       getter non_ascii_seen : Int64
 
       def initialize(extended : Bool = false)
-        @normal = [
-          LatinCandidate.new(WINDOWS_1252_DATA, windows_1252: true),
-          NonLatinCasedCandidate.new(WINDOWS_1251_DATA),
-          LatinCandidate.new(WINDOWS_1250_DATA),
-          LatinCandidate.new(ISO_8859_2_DATA),
-          ArabicFrenchCandidate.new(WINDOWS_1256_DATA),
-          LatinCandidate.new(WINDOWS_1252_ICELANDIC_DATA),
-          LatinCandidate.new(WINDOWS_1254_DATA),
-          CaselessCandidate.new(WINDOWS_874_DATA),
-          @logical,
-          NonLatinCasedCandidate.new(WINDOWS_1253_DATA),
-          NonLatinCasedCandidate.new(ISO_8859_7_DATA),
-          LatinCandidate.new(WINDOWS_1257_DATA),
-          LatinCandidate.new(ISO_8859_13_DATA),
-          NonLatinCasedCandidate.new(KOI8_U_DATA),
-          NonLatinCasedCandidate.new(IBM866_DATA),
-          CaselessCandidate.new(ISO_8859_6_DATA),
-          LatinCandidate.new(WINDOWS_1258_DATA),
-          LatinCandidate.new(ISO_8859_4_DATA),
-          NonLatinCasedCandidate.new(ISO_8859_5_DATA),
-        ] of Candidate
+        @normal = uninitialized StaticArray(Candidate, 25)
+        n = @normal.to_unsafe
+        n[0] = Candidate.latin(WINDOWS_1252_DATA, windows_1252: true)
+        n[1] = Candidate.non_latin_cased(WINDOWS_1251_DATA)
+        n[2] = Candidate.latin(WINDOWS_1250_DATA)
+        n[3] = Candidate.latin(ISO_8859_2_DATA)
+        n[4] = Candidate.arabic_french(WINDOWS_1256_DATA)
+        n[5] = Candidate.latin(WINDOWS_1252_ICELANDIC_DATA)
+        n[6] = Candidate.latin(WINDOWS_1254_DATA)
+        n[7] = Candidate.caseless(WINDOWS_874_DATA)
+        n[8] = Candidate.logical(WINDOWS_1255_DATA)
+        n[9] = Candidate.non_latin_cased(WINDOWS_1253_DATA)
+        n[10] = Candidate.non_latin_cased(ISO_8859_7_DATA)
+        n[11] = Candidate.latin(WINDOWS_1257_DATA)
+        n[12] = Candidate.latin(ISO_8859_13_DATA)
         if extended
-          latin = [@normal[0], @normal[2], @normal[3]].map(&.as(LatinCandidate)) # windows-1252, windows-1250, ISO-8859-2
-          @normal.insert(@normal.index!(&.encoding.==("KOI8-U")), NonLatinCasedCandidate.new(KOI8_R_DATA))
-          rare = [
-            LatinCandidate.new(MACINTOSH_DATA, twins: latin),
-            LatinCandidate.new(IBM850_DATA, twins: latin),
-            LatinCandidate.new(IBM437_DATA, twins: latin),
-            LatinCandidate.new(IBM852_DATA, twins: latin),
-            NonLatinCasedCandidate.new(X_MAC_CYRILLIC_DATA),
-          ] of Candidate
-          rare.each(&.handicap=(RARE_HANDICAP))
-          @normal.concat(rare)
+          n[13] = Candidate.non_latin_cased(KOI8_R_DATA)
+          n[14] = Candidate.non_latin_cased(KOI8_U_DATA)
+          n[15] = Candidate.non_latin_cased(IBM866_DATA)
+          n[16] = Candidate.caseless(ISO_8859_6_DATA)
+          n[17] = Candidate.latin(WINDOWS_1258_DATA)
+          n[18] = Candidate.latin(ISO_8859_4_DATA)
+          n[19] = Candidate.non_latin_cased(ISO_8859_5_DATA)
+          n[20] = Candidate.latin(MACINTOSH_DATA, has_twins: true, handicap: RARE_HANDICAP)
+          n[21] = Candidate.latin(IBM850_DATA, has_twins: true, handicap: RARE_HANDICAP)
+          n[22] = Candidate.latin(IBM437_DATA, has_twins: true, handicap: RARE_HANDICAP)
+          n[23] = Candidate.latin(IBM852_DATA, has_twins: true, handicap: RARE_HANDICAP)
+          n[24] = Candidate.non_latin_cased(X_MAC_CYRILLIC_DATA, handicap: RARE_HANDICAP)
+          @normal_len = 25
+        else
+          n[13] = Candidate.non_latin_cased(KOI8_U_DATA)
+          n[14] = Candidate.non_latin_cased(IBM866_DATA)
+          n[15] = Candidate.caseless(ISO_8859_6_DATA)
+          n[16] = Candidate.latin(WINDOWS_1258_DATA)
+          n[17] = Candidate.latin(ISO_8859_4_DATA)
+          n[18] = Candidate.non_latin_cased(ISO_8859_5_DATA)
+          (n + 19).clear(6)
+          @normal_len = 19
         end
       end
 
@@ -896,17 +903,21 @@ module Fathom
       def result : {String, Int64}
         return {"UTF-8", 0_i64} if @utf8.score
 
+        twin_plausible = latin_twin_plausible?
         encoding = WINDOWS_1252_DATA.encoding
         max = 0_i64
-        @normal.each do |candidate|
-          if (score = candidate.guess_score) && score > max
+        ptr = @normal.to_unsafe
+        i = 0
+        while i < @normal_len
+          if (score = (ptr + i).value.guess_score(twin_plausible)) && score > max
             max = score
-            encoding = candidate.encoding
+            encoding = (ptr + i).value.encoding
           end
+          i += 1
         end
-        if (visual_score = @visual.guess_score) &&
+        if (visual_score = @visual.guess_score(twin_plausible)) &&
            (visual_score > max || encoding == WINDOWS_1255_DATA.encoding) &&
-           @visual.plausible_punctuation > @logical.plausible_punctuation
+           @visual.plausible_punctuation > (ptr + LOGICAL_IDX).value.plausible_punctuation
           encoding = ISO_8859_8_DATA.encoding
           max = visual_score
         end
@@ -916,21 +927,47 @@ module Fathom
       # Yields each still-qualified single-byte candidate's encoding and score
       # (windows-1252 may be yielded twice: generic and Icelandic tables).
       def each_score(& : String, Int64 ->) : Nil
-        @normal.each do |candidate|
-          if score = candidate.guess_score
-            yield candidate.encoding, score
+        twin_plausible = latin_twin_plausible?
+        ptr = @normal.to_unsafe
+        i = 0
+        while i < @normal_len
+          if score = (ptr + i).value.guess_score(twin_plausible)
+            yield (ptr + i).value.encoding, score
           end
+          i += 1
         end
-        if score = @visual.guess_score
+        if score = @visual.guess_score(twin_plausible)
           yield ISO_8859_8_DATA.encoding, score
         end
+      end
+
+      @[AlwaysInline]
+      private def latin_twin_plausible? : Bool
+        ptr = @normal.to_unsafe
+        (ptr + WIN1252_IDX).value.plausible_twin? ||
+          (ptr + WIN1250_IDX).value.plausible_twin? ||
+          (ptr + ISO88592_IDX).value.plausible_twin?
       end
 
       private def feed_all(buffer : Bytes, last : Bool) : Nil
         @utf8.feed(buffer, last)
         @visual.feed(buffer, last)
-        @normal.each(&.feed(buffer, last))
-        @non_ascii_seen += buffer.count { |b| b >= 0x80 }
+        ptr = @normal.to_unsafe
+        i = 0
+        while i < @normal_len
+          (ptr + i).value.feed(buffer, last)
+          i += 1
+        end
+
+        buf_ptr = buffer.to_unsafe
+        buf_size = buffer.size
+        non_ascii = 0_i64
+        j = 0
+        while j < buf_size
+          non_ascii += 1 if buf_ptr[j] >= 0x80_u8
+          j += 1
+        end
+        @non_ascii_seen += non_ascii
       end
 
       private def push_before(buffer : Bytes) : Nil

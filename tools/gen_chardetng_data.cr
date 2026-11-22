@@ -81,7 +81,7 @@ def derive(iconv : String, script : String, boundary : Int32, box_art : Bool, up
       if caseless == 0 || caseless == ASCII_DIGIT
         semantic[c] ||= caseless
       elsif caseless >= ref_boundary
-        semantic[c] ||= UNSTORED_TAG + (caseless - ref_boundary) + (klass & 0x80).to_i
+        semantic[c] ||= UNSTORED_TAG + ((caseless - ref_boundary) | (klass & 0x80).to_i)
       elsif ref_script == script
         letters[c] ||= klass
       end
@@ -98,7 +98,7 @@ def derive(iconv : String, script : String, boundary : Int32, box_art : Bool, up
     elsif s = semantic[c]?
       if s >= UNSTORED_TAG
         offset = s - UNSTORED_TAG
-        ((offset & 0x7F) + boundary + (offset & 0x80)).to_u8
+        (((offset & 0x7F) + boundary) | (offset & 0x80)).to_u8
       else
         s.to_u8
       end

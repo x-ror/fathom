@@ -32,10 +32,12 @@ module Fathom
       "X-MAC-CYRILLIC",
     }
 
-    # ISO/Windows pairs that differ only in `0x80..0x9F`.
-    # Each pair is collapsed to the Windows superset because it decodes both.
+    # ISO/Windows pairs collapsed to the Windows superset because it shares the
+    # script codepoints and decodes the ISO variant (most differ only in `0x80..0x9F`;
+    # `WINDOWS-1255` also adds Hebrew niqqud/points over `ISO-8859-8`).
     ISO_WINDOWS_ALIASES = {
       "ISO-8859-1"  => "WINDOWS-1252",
+      "ISO-8859-8"  => "WINDOWS-1255",
       "ISO-8859-9"  => "WINDOWS-1254",
       "ISO-8859-11" => "WINDOWS-874",
       "ISO-8859-13" => "WINDOWS-1257",
@@ -71,6 +73,11 @@ module Fathom
       "ISO8859-9"           => "WINDOWS-1254",
       "CP1255"              => "WINDOWS-1255",
       "X-CP1255"            => "WINDOWS-1255",
+      "ISO_8859-8"          => "WINDOWS-1255",
+      "ISO8859-8"           => "WINDOWS-1255",
+      "ISO-8859-8-I"        => "WINDOWS-1255",
+      "HEBREW"              => "WINDOWS-1255",
+      "VISUAL"              => "WINDOWS-1255",
       "CP1256"              => "WINDOWS-1256",
       "X-CP1256"            => "WINDOWS-1256",
       "CP1257"              => "WINDOWS-1257",
@@ -124,8 +131,21 @@ module Fathom
     # Normalizes *label* to Fathom's canonical uppercase encoding name.
     # Applies the ISO/Windows alias rule (e.g. `"ISO-8859-1"` -> `"WINDOWS-1252"`).
     def self.canonical_name(label : String) : String
+      if normalized_already?(label)
+        return ALIASES[label]? || label
+      end
       normalized = label.strip.upcase
       ALIASES[normalized]? || normalized
+    end
+
+    private def self.normalized_already?(label : String) : Bool
+      bytes = label.to_slice
+      return true if bytes.empty?
+      return false if bytes.unsafe_fetch(0) <= 0x20 || bytes.unsafe_fetch(bytes.size - 1) <= 0x20
+      bytes.each do |b|
+        return false if b >= 0x80_u8 || ('a'.ord <= b <= 'z'.ord)
+      end
+      true
     end
 
     # Returns the encoding name to pass to Crystal's `String.new(bytes, name)` (`iconv`)
