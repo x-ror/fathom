@@ -54,6 +54,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           shards install
+          mkdir -p bin
           crystal build -o bin/ameba lib/ameba/bin/ameba.cr
           bin/ameba
 

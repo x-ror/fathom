@@ -308,7 +308,7 @@ describe Fathom do
     it "does not read Cyrillic words inside English text as WINDOWS-1252" do
       log = "2024-05-01 12:00:01 ERROR [main] Failed to open file: Файл не найден\n"
       %w[WINDOWS-1251 KOI8-R ISO-8859-5 IBM866].each do |enc|
-        Fathom.detect(log.encode(enc)).should_not eq "WINDOWS-1252"
+        detect(log, enc).should_not eq "WINDOWS-1252"
       end
       detect(log, "WINDOWS-1251").should eq "WINDOWS-1251"
       detect(log, "IBM866").should eq "IBM866"
