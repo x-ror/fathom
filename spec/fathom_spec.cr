@@ -7,7 +7,7 @@ DE = "Zwölf Boxkämpfer jagen Viktor quer über den großen Sylter Deich, währ
 EN = "It’s a “quoted” sentence — with curly punctuation only."
 
 private def detect(text, encoding)
-  Fathom.detect(text.encode(encoding))
+  Fathom.detect(text.encode(Fathom::Encoding.iconv_name(encoding)))
 end
 
 private struct MockAsciiXorProber
@@ -185,6 +185,106 @@ describe Fathom do
       m = detector.match("café".encode("WINDOWS-1252")).not_nil!
       m.encoding.should eq "X-CUSTOM-8BIT"
       m.confidence.should eq 0.99
+    end
+  end
+
+  describe Fathom::Encoding do
+    it "resolves WHATWG aliases and collapses ISO/Windows 0x80..0x9F pairs" do
+      Fathom::Encoding.canonical_name("utf-8").should eq "UTF-8"
+      Fathom::Encoding.canonical_name("us-ascii").should eq "WINDOWS-1252"
+      Fathom::Encoding.canonical_name("ascii").should eq "WINDOWS-1252"
+      Fathom::Encoding.canonical_name("iso-8859-1").should eq "WINDOWS-1252"
+      Fathom::Encoding.canonical_name("latin1").should eq "WINDOWS-1252"
+      Fathom::Encoding.canonical_name("ISO-8859-9").should eq "WINDOWS-1254"
+      Fathom::Encoding.canonical_name("ISO-8859-13").should eq "WINDOWS-1257"
+      Fathom::Encoding.canonical_name("TIS-620").should eq "WINDOWS-874"
+      Fathom::Encoding.canonical_name("iso-8859-11").should eq "WINDOWS-874"
+      Fathom::Encoding.canonical_name("cp1251").should eq "WINDOWS-1251"
+      Fathom::Encoding.canonical_name("cp866").should eq "IBM866"
+    end
+
+    it "provides iconv-compatible names via Match#iconv_name" do
+      Fathom::Match.new("WINDOWS-1251", 0.9).iconv_name.should eq "WINDOWS-1251"
+      Fathom::Match.new("iso-8859-1", 0.9).iconv_name.should eq "WINDOWS-1252"
+      Fathom::Match.new("IBM866", 0.9).iconv_name.should eq "CP866"
+    end
+  end
+
+  describe ".decode" do
+    it "detects and decodes UTF-8, single-byte, and BOM-less UTF-16 payloads" do
+      Fathom.decode(RU.to_slice).should eq RU
+      Fathom.decode(RU.encode("WINDOWS-1251")).should eq RU
+      Fathom.decode(RU.encode("KOI8-R")).should eq RU
+      Fathom.decode(FR.encode("WINDOWS-1252")).should eq FR
+
+      ascii_utf16 = "Hello, world! Testing UTF-16 without BOM."
+      Fathom.decode(ascii_utf16.encode("UTF-16LE")).should eq ascii_utf16
+      Fathom.decode(ascii_utf16.encode("UTF-16BE")).should eq ascii_utf16
+    end
+
+    it "strips leading BOM bytes when decoding" do
+      {
+        {"UTF-8", Bytes[0xEF, 0xBB, 0xBF]},
+        {"UTF-16LE", Bytes[0xFF, 0xFE]},
+        {"UTF-16BE", Bytes[0xFE, 0xFF]},
+        {"UTF-32LE", Bytes[0xFF, 0xFE, 0x00, 0x00]},
+        {"UTF-32BE", Bytes[0x00, 0x00, 0xFE, 0xFF]},
+      }.each do |enc, bom|
+        encoded = RU.encode(enc)
+        payload = Bytes.new(bom.size + encoded.size)
+        bom.copy_to(payload)
+        encoded.copy_to(payload + bom.size)
+
+        Fathom.decode(payload).should eq RU
+      end
+    end
+
+    it "returns nil for binary payloads and supports IO decoding" do
+      Fathom.decode(Bytes[0x00, 0x9F, 0x92, 0x00, 0xFF, 0x10]).should be_nil
+
+      io = IO::Memory.new(UK.encode("KOI8-U"))
+      Fathom.decode(io).should eq UK
+    end
+
+    it "passes invalid option through to String.new unchanged" do
+      corrupt = RU.to_slice + Bytes[0xFF]
+      Fathom.detect(corrupt).should eq "UTF-8"
+
+      expect_raises(ArgumentError) do
+        Fathom.decode(corrupt)
+      end
+
+      Fathom.decode(corrupt, invalid: :skip).should eq RU
+    end
+  end
+
+  describe "Latin text with isolated accents" do
+    it "does not read Italian WINDOWS-1252 as WINDOWS-1251" do
+      # Word-final "è"/"à" (0xE8/0xE0) are frequent Cyrillic letters in WINDOWS-1251.
+      it_text = "La fotosintesi è un processo per mezzo del quale la città e la società producono più energia."
+      Fathom.detect(it_text.encode("WINDOWS-1252")).should eq "WINDOWS-1252"
+    end
+  end
+
+  describe "tolerant UTF-8" do
+    it "detects slightly corrupted UTF-8 with lowered confidence" do
+      corrupt = RU.to_slice + Bytes[0xFF, 0x80]
+      m = Fathom.match(corrupt).not_nil!
+      m.encoding.should eq "UTF-8"
+      m.confidence.should be < 1.0
+      m.confidence.should be >= 0.75
+    end
+
+    it "uses multi-byte sequence ratio rather than ASCII+byte ratio" do
+      # Lots of ASCII, only 2 valid multi-byte chars, and 3 invalid bytes -> must NOT match UTF-8.
+      mostly_ascii = ("plain ascii log line\n" * 40).to_slice + "éè".to_slice + Bytes[0xFF, 0xFE, 0x80]
+      Fathom.detect(mostly_ascii).should_not eq "UTF-8"
+
+      # Lots of ASCII, 10 valid multi-byte chars, and 1 invalid byte -> matches tolerant UTF-8.
+      valid_multibyte_dominant = ("plain ascii log line\n" * 40).to_slice + "éèàçùêîôûä".to_slice + Bytes[0xFF]
+      m = Fathom.match(valid_multibyte_dominant).not_nil!
+      m.encoding.should eq "UTF-8"
+      m.confidence.should be < 1.0
     end
   end
 end

@@ -31,5 +31,15 @@ module Fathom
 
       nil
     end
+
+    # Returns the BOM byte length for *encoding*, or `0` if *encoding* has no BOM.
+    def self.byte_size(encoding : String) : Int32
+      case encoding
+      when "UTF-8"                then 3
+      when "UTF-16LE", "UTF-16BE" then 2
+      when "UTF-32LE", "UTF-32BE" then 4
+      else                             0
+      end
+    end
   end
 end

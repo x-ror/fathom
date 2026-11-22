@@ -32,18 +32,36 @@ jobs:
           done
 
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+
+      - if: matrix.os == 'windows-latest'
+        uses: ilammy/msvc-dev-cmd@v1
 
       - name: Install Crystal
         uses: crystal-lang/install-crystal@v1
 
       - name: Check formatting
+        if: matrix.os == 'ubuntu-latest'
         run: crystal tool format --check
 
       - name: Run specs
         run: crystal spec
 
       - name: Build docs
+        if: matrix.os == 'ubuntu-latest'
         run: crystal docs
+
+  test-musl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run specs on Alpine (musl)
+        run: |
+          docker run --rm -v "$PWD:/work" -w /work crystallang/crystal:latest-alpine crystal spec
