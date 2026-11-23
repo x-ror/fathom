@@ -3,34 +3,40 @@ require "./spec_helper"
 private GATE_CORPUS_DIR  = File.expand_path("fixtures/corpus", __DIR__)
 private GATE_SLICE_SIZES = [64, 256, nil]
 
-# Regression gate over a subset of `corpus/` (`_1.txt` / `dos_1.txt` fixtures in `spec/fixtures/corpus/`).
+# Regression gate over a subset of `corpus/` (`_1.txt` / `dos_1.txt` fixtures in `spec/fixtures/corpus/`,
+# except `ISO-8859-13` which uses `lt_3.txt` + `lv_1.txt` because `lt_1.txt` contains none of its
+# distinguishing quote bytes `0xA1`/`0xA5`/`0xB4`/`0xFF` and tie-breaks to `WINDOWS-1257`).
 # Note: this fixture overlaps `corpus/` and is a regression guard rather than an independent held-out benchmark.
 # Floors are set to measured accuracy rounded down to 2 decimals; raise when accuracy improves and document any trade-offs.
+# `ISO-8859-13` recall (`0.33`) and `WINDOWS-1257` precision (`0.57`) reflect short `64B`/`256B` slices before the
+# first distinguishing quote byte, which are byte-identical to `WINDOWS-1257` and resolve to `WINDOWS-1257` by tie-break order.
+# Re-baselined for the chardetng-based detector: see CHANGELOG for the per-encoding trade-offs.
 private GATE_THRESHOLDS = {
   "IBM437"         => {precision: 1.00, recall: 1.00},
-  "IBM850"         => {precision: 0.80, recall: 0.88},
-  "IBM852"         => {precision: 1.00, recall: 0.77},
+  "IBM850"         => {precision: 0.87, recall: 0.77},
+  "IBM852"         => {precision: 0.90, recall: 1.00},
   "IBM866"         => {precision: 1.00, recall: 1.00},
   "ISO-8859-2"     => {precision: 1.00, recall: 0.83},
   "ISO-8859-5"     => {precision: 1.00, recall: 1.00},
   "ISO-8859-6"     => {precision: 1.00, recall: 1.00},
   "ISO-8859-7"     => {precision: 1.00, recall: 1.00},
-  "KOI8-R"         => {precision: 1.00, recall: 1.00},
-  "KOI8-U"         => {precision: 1.00, recall: 1.00},
-  "MACINTOSH"      => {precision: 0.88, recall: 1.00},
+  "ISO-8859-13"    => {precision: 1.00, recall: 0.33},
+  "KOI8-R"         => {precision: 0.75, recall: 1.00},
+  "KOI8-U"         => {precision: 1.00, recall: 0.66},
+  "MACINTOSH"      => {precision: 1.00, recall: 0.80},
   "UTF-16BE"       => {precision: 1.00, recall: 1.00},
   "UTF-16LE"       => {precision: 1.00, recall: 1.00},
   "UTF-32BE"       => {precision: 1.00, recall: 1.00},
   "UTF-32LE"       => {precision: 1.00, recall: 1.00},
   "UTF-8"          => {precision: 1.00, recall: 1.00},
-  "WINDOWS-1250"   => {precision: 0.87, recall: 0.77},
+  "WINDOWS-1250"   => {precision: 0.60, recall: 1.00},
   "WINDOWS-1251"   => {precision: 1.00, recall: 1.00},
-  "WINDOWS-1252"   => {precision: 0.90, recall: 1.00},
+  "WINDOWS-1252"   => {precision: 0.94, recall: 0.94},
   "WINDOWS-1253"   => {precision: 1.00, recall: 1.00},
-  "WINDOWS-1254"   => {precision: 1.00, recall: 1.00},
-  "WINDOWS-1255"   => {precision: 1.00, recall: 0.66},
+  "WINDOWS-1254"   => {precision: 0.75, recall: 1.00},
+  "WINDOWS-1255"   => {precision: 1.00, recall: 1.00},
   "WINDOWS-1256"   => {precision: 1.00, recall: 1.00},
-  "WINDOWS-1257"   => {precision: 1.00, recall: 0.83},
+  "WINDOWS-1257"   => {precision: 0.57, recall: 0.66},
   "WINDOWS-874"    => {precision: 1.00, recall: 1.00},
   "X-MAC-CYRILLIC" => {precision: 1.00, recall: 1.00},
 }

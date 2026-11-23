@@ -17,5 +17,14 @@ module Fathom
     # Evaluates *bytes* (with precomputed *stats*) and returns a `Match` if this
     # encoding is plausible, or `nil` otherwise.
     abstract def probe(bytes : Bytes, stats : ByteStats) : Match?
+
+    # Yields every plausible `Match` for *bytes*, best first. Defaults to the
+    # single result of `#probe`; probers that rank several encodings override it
+    # so `Detector#detect_all` can list them.
+    def each_match(bytes : Bytes, stats : ByteStats, & : Match ->) : Nil
+      if match = probe(bytes, stats)
+        yield match
+      end
+    end
   end
 end

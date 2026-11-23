@@ -202,8 +202,10 @@ describe Fathom do
       Fathom::Encoding.canonical_name("ascii").should eq "WINDOWS-1252"
       Fathom::Encoding.canonical_name("iso-8859-1").should eq "WINDOWS-1252"
       Fathom::Encoding.canonical_name("latin1").should eq "WINDOWS-1252"
+      Fathom::Encoding.canonical_name("ISO-8859-8").should eq "ISO-8859-8"
       Fathom::Encoding.canonical_name("ISO-8859-9").should eq "WINDOWS-1254"
-      Fathom::Encoding.canonical_name("ISO-8859-13").should eq "WINDOWS-1257"
+      Fathom::Encoding.canonical_name("ISO-8859-13").should eq "ISO-8859-13"
+      Fathom::Encoding.canonical_name("latin7").should eq "ISO-8859-13"
       Fathom::Encoding.canonical_name("TIS-620").should eq "WINDOWS-874"
       Fathom::Encoding.canonical_name("iso-8859-11").should eq "WINDOWS-874"
       Fathom::Encoding.canonical_name("cp1251").should eq "WINDOWS-1251"
@@ -337,7 +339,8 @@ describe Fathom do
     it "detects WINDOWS-1252 when the only high bytes are symbols" do
       match = Fathom.match("100 €".encode("WINDOWS-1252")).should_not be_nil
       match.encoding.should eq "WINDOWS-1252"
-      match.confidence.should eq 0.25
+      # Neutral evidence (punctuation only) counts as a tie, not as a confident guess.
+      match.confidence.should eq Fathom::Chardetng::Prober::TIE_CONFIDENCE
     end
 
     it "accepts UTF-8 whose first multi-byte character is cut by the sample boundary" do
@@ -443,6 +446,28 @@ describe Fathom do
       copyright = Fathom.match("Copyright © 2024 Acme Corp. All rights reserved.".encode("WINDOWS-1252")).should_not be_nil
       copyright.encoding.should eq "WINDOWS-1252"
       copyright.confidence.should be >= 0.55
+    end
+
+    it "detects visual-order Hebrew as WINDOWS-1255 with Hebrew language metadata" do
+      match = Fathom.match(".\xed\xe9\xe5\xe5\xfa \xe3\xe5\xe3\xe9\xf7 \xef\xe7\xe1\xee \xe5\xe4\xe6".to_slice).should_not be_nil
+      match.encoding.should eq "WINDOWS-1255"
+      match.language.should eq "he"
+    end
+
+    it "does not fold visual Hebrew into WINDOWS-1255 when windows-1255 can't decode it" do
+      # 0xDF is "‗" in ISO-8859-8 but undefined in windows-1255.
+      bytes = ".\xed\xe9\xe5\xe5\xfa \xe3\xe5\xe3\xe9\xf7 \xef\xe7\xe1\xee \xe5\xe4\xe6 \xdf\xdf".to_slice
+      Fathom.detect(bytes).should_not eq "WINDOWS-1255"
+      Fathom.decode(bytes) # must not raise
+    end
+
+    it "detects and decodes ISO-8859-13 with Baltic quotation marks" do
+      text = "„Glāžšķūņa rūķīši dzērumā čiepj Baha concertflīģeļu vākus.”"
+      bytes = text.encode("ISO-8859-13")
+      match = Fathom.match(bytes).should_not be_nil
+      match.encoding.should eq "ISO-8859-13"
+      match.language.should eq "lv"
+      Fathom.decode(bytes).should eq text
     end
 
     it "marks undefined WINDOWS-874 bytes (0xDB..0xDE, 0xFC..0xFF) as CharKind::Junk" do

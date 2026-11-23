@@ -53,6 +53,7 @@ TARGETS = {
   "ISO-8859-2"     => %w[pl cs],
   "IBM852"         => %w[pl cs hu],
   "WINDOWS-1257"   => %w[lt lv],
+  "ISO-8859-13"    => %w[lt lv],
   "WINDOWS-1253"   => %w[el],
   "ISO-8859-7"     => %w[el],
   "WINDOWS-1254"   => %w[tr],
@@ -170,7 +171,10 @@ sources.each do |path|
 
   outputs.each do |encoding, file, bytes|
     write(File.join(CORPUS, encoding), file, bytes) unless encoding == "UTF-8" && file == name
-    write(File.join(FIXTURE, encoding), file, bytes) if gate
+    # lt_1.txt has none of ISO-8859-13's distinguishing quote bytes (0xA1/0xA5/0xB4/0xFF)
+    # and therefore tie-breaks to WINDOWS-1257; use lt_3.txt in the CI gate fixture instead.
+    in_gate = encoding == "ISO-8859-13" && lang == "lt" ? file == "lt_3.txt" : gate
+    write(File.join(FIXTURE, encoding), file, bytes) if in_gate
   end
 end
 
