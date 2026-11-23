@@ -5,11 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] - 2026-11-23
 
 ### Added
-- Support for 15 additional single-byte encodings (21 single-byte, 26 total):
-  - Central & Baltic Europe: `WINDOWS-1250`, `ISO-8859-2`, `WINDOWS-1257`
+- Support for 16 additional single-byte encodings (22 single-byte, 27 total):
+  - Central & Baltic Europe: `WINDOWS-1250`, `ISO-8859-2`, `WINDOWS-1257`, `ISO-8859-13`
   - Greek & Turkish: `WINDOWS-1253`, `ISO-8859-7`, `WINDOWS-1254`
   - Hebrew, Arabic & Thai: `WINDOWS-1255`, `WINDOWS-1256`, `ISO-8859-6`, `WINDOWS-874`
   - DOS code pages: `IBM437`, `IBM850`, `IBM852`

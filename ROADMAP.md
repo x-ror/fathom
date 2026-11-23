@@ -30,10 +30,10 @@ This document outlines the planned evolution of **fathom** from `0.1.0` to a sta
 
 - Language-level bigram models trained on corpora and projected through encoding tables, applied only to existing encodings (Cyrillic + `WINDOWS-1252`) so algorithm changes are isolated from new encoding coverage and measured against the `0.2.0` baseline.
 
-## `0.4.0` — Expanded Single-Byte Encodings & Language Metadata
+## `0.4.0` — Expanded Single-Byte Encodings & Language Metadata (Released)
 
 - Expand distinct single-byte tables:
-  - Central / Baltic Europe: `WINDOWS-1250`, `ISO-8859-2`, `WINDOWS-1257`
+  - Central / Baltic Europe: `WINDOWS-1250`, `ISO-8859-2`, `WINDOWS-1257`, `ISO-8859-13`
   - Greek (`WINDOWS-1253`, `ISO-8859-7`), Turkish (`WINDOWS-1254`)
   - Hebrew (`WINDOWS-1255`), Arabic (`WINDOWS-1256`, `ISO-8859-6`), Thai (`WINDOWS-874`)
   - DOS code pages (`IBM437`, `IBM850`, `IBM852`) and Mac encodings (`macintosh`, `x-mac-cyrillic`)
