@@ -133,6 +133,8 @@ crystal spec
 crystal docs
 crystal run tools/train_models.cr -- --fetch        # train bigram models from Wikipedia
 crystal run tools/gen_tables.cr > src/fathom/tables.cr # regenerate precomputed byte tables
+crystal run tools/gen_chardetng_data.cr -- path/to/chardetng-1.0.0/src/data.rs  # regenerate chardetng tables
+crystal run tools/heldout.cr                          # held-out accuracy on the uchardet/chardetng test suites
 crystal run --release bench/benchmark.cr             # run throughput benchmark
 ```
 
