@@ -88,7 +88,7 @@ module Fathom
             winner = ptr[best_idx][0]
             max = best
           else
-            if default_score = score_for(ptr, count, DEFAULT_ENCODING)
+            if (default_score = score_for(ptr, count, DEFAULT_ENCODING)) && default_score >= best
               winner = DEFAULT_ENCODING
               win_score = default_score
             else
