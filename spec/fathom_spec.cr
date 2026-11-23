@@ -469,14 +469,5 @@ describe Fathom do
       match.language.should eq "lv"
       Fathom.decode(bytes).should eq text
     end
-
-    it "marks undefined WINDOWS-874 bytes (0xDB..0xDE, 0xFC..0xFF) as CharKind::Junk" do
-      prober = Fathom::SingleByte::PROBERS.find! do |p|
-        p.as(Fathom::SingleByte::Table).encoding == "WINDOWS-874"
-      end.as(Fathom::SingleByte::Table)
-      [0xDB, 0xDC, 0xDD, 0xDE, 0xFC, 0xFD, 0xFE, 0xFF].each do |byte|
-        (prober.byte_map[byte] >> Fathom::SingleByte::KIND_SHIFT).should eq Fathom::SingleByte::CharKind::Junk.value
-      end
-    end
   end
 end

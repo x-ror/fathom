@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Near-ties among Latin Windows/ISO encodings (`WINDOWS-1252`, `WINDOWS-1250`, `ISO-8859-2`, `WINDOWS-1254`, `WINDOWS-1257`, `ISO-8859-13`; runner-up at least half the winner's score) are decided by the per-language bigram models in `Fathom::SingleByte::PROBERS`.
 - `corpus/`: `776/840` → `786/840`; held-out: `345/359` → `346/359`. Gate floors: `WINDOWS-1250` recall `1.00` → `0.77` (short `hu_1` slices now read as `WINDOWS-1252`), `WINDOWS-1252` precision `0.94` → `0.85`, `WINDOWS-1257` precision `0.57` → `0.55`; raised `IBM850` precision, `MACINTOSH` recall, `WINDOWS-1250` precision, `WINDOWS-1252` recall, `WINDOWS-1254` precision and `WINDOWS-1257` recall.
 
+### Removed
+- Bigram probers that no longer influence any result: `WINDOWS-1253`, `ISO-8859-7`, `WINDOWS-1255`, `WINDOWS-1256`, `ISO-8859-6`, `WINDOWS-874`, `KOI8-R`, `KOI8-U`, `IBM866`, `IBM850`, `IBM437` and `MACINTOSH` (detection is chardetng's, and `Match#language` for these is fixed), together with the `el`, `he`, `ar` and `th` models and their training. `Fathom::SingleByte::PROBERS` keeps 22 probers (Latin near-ties and language for multi-language encodings). `src/fathom/tables.cr` shrinks from ~2,400 to ~1,700 lines; a minimal program from ~9.8 MB to ~7.8 MB.
+- **Breaking:** `Fathom::SingleByte::Table#handicap` and the `handicap` argument of `Table.new` (only the removed `KOI8-U` prober used it).
+
 ## [0.4.0] - 2026-11-23
 
 ### Added
