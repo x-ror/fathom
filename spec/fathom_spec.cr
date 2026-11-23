@@ -204,7 +204,8 @@ describe Fathom do
       Fathom::Encoding.canonical_name("latin1").should eq "WINDOWS-1252"
       Fathom::Encoding.canonical_name("ISO-8859-8").should eq "ISO-8859-8"
       Fathom::Encoding.canonical_name("ISO-8859-9").should eq "WINDOWS-1254"
-      Fathom::Encoding.canonical_name("ISO-8859-13").should eq "WINDOWS-1257"
+      Fathom::Encoding.canonical_name("ISO-8859-13").should eq "ISO-8859-13"
+      Fathom::Encoding.canonical_name("latin7").should eq "ISO-8859-13"
       Fathom::Encoding.canonical_name("TIS-620").should eq "WINDOWS-874"
       Fathom::Encoding.canonical_name("iso-8859-11").should eq "WINDOWS-874"
       Fathom::Encoding.canonical_name("cp1251").should eq "WINDOWS-1251"
@@ -458,6 +459,15 @@ describe Fathom do
       bytes = ".\xed\xe9\xe5\xe5\xfa \xe3\xe5\xe3\xe9\xf7 \xef\xe7\xe1\xee \xe5\xe4\xe6 \xdf\xdf".to_slice
       Fathom.detect(bytes).should_not eq "WINDOWS-1255"
       Fathom.decode(bytes) # must not raise
+    end
+
+    it "detects and decodes ISO-8859-13 with Baltic quotation marks" do
+      text = "„Glāžšķūņa rūķīši dzērumā čiepj Baha concertflīģeļu vākus.”"
+      bytes = text.encode("ISO-8859-13")
+      match = Fathom.match(bytes).should_not be_nil
+      match.encoding.should eq "ISO-8859-13"
+      match.language.should eq "lv"
+      Fathom.decode(bytes).should eq text
     end
 
     it "marks undefined WINDOWS-874 bytes (0xDB..0xDE, 0xFC..0xFF) as CharKind::Junk" do

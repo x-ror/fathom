@@ -21,6 +21,8 @@ PROBER_SPECS = [
   {"ISO-8859-2", "hu", false, 0},
   {"WINDOWS-1257", "lt", false, 0},
   {"WINDOWS-1257", "lv", false, 0},
+  {"ISO-8859-13", "lt", false, 0},
+  {"ISO-8859-13", "lv", false, 0},
   {"WINDOWS-1254", "tr", false, 0},
   {"WINDOWS-1253", "el", true, 0},
   {"ISO-8859-7", "el", true, 0},

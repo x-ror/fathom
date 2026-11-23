@@ -122,10 +122,10 @@ module Fathom
         end
       end
 
-      # Canonical name for a chardetng guess. Visual Hebrew (ISO-8859-8) folds to
-      # WINDOWS-1255 only when the input is valid windows-1255: the two differ at
-      # 0xDF (ISO-8859-8 "‗" is undefined in windows-1255), so otherwise it stays
-      # ISO-8859-8, which Fathom doesn't report, and the next candidate wins.
+      # Canonical name for a chardetng guess. Visual Hebrew (`ISO-8859-8`) folds to
+      # `WINDOWS-1255` only when valid `windows-1255` (`0xDF` is undefined there);
+      # otherwise it stays `ISO-8859-8`, which Fathom doesn't report, and the next
+      # candidate wins.
       private def fold(name : String, hebrew_ok : Bool) : String
         return (hebrew_ok ? "WINDOWS-1255" : name) if name == ISO_8859_8_DATA.encoding
         Encoding.canonical_name(name)
