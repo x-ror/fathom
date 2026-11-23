@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `tools/heldout.cr`: held-out accuracy benchmark on the uchardet and chardetng test suites (downloaded on first run, scored by decode equivalence).
+
+### Changed
+- Short Western text: the rare Latin encodings (`MACINTOSH`, `IBM850`, `IBM437`, `IBM852`) take an extra `-220` when a non-ASCII capital follows a lowercase letter ("aragonÉs"), which separates Mac Roman from CP850.
+- When no encoding scores above zero, `WINDOWS-1252` is the fallback only if it scores at least as well as the best candidate.
+- Near-ties among Latin Windows/ISO encodings (`WINDOWS-1252`, `WINDOWS-1250`, `ISO-8859-2`, `WINDOWS-1254`, `WINDOWS-1257`, `ISO-8859-13`; runner-up at least half the winner's score) are decided by the per-language bigram models in `Fathom::SingleByte::PROBERS`.
+- `corpus/`: `776/840` → `786/840`; held-out: `345/359` → `346/359`. Gate floors: `WINDOWS-1250` recall `1.00` → `0.77` (short `hu_1` slices now read as `WINDOWS-1252`), `WINDOWS-1252` precision `0.94` → `0.85`, `WINDOWS-1257` precision `0.57` → `0.55`; raised `IBM850` precision, `MACINTOSH` recall, `WINDOWS-1250` precision, `WINDOWS-1252` recall, `WINDOWS-1254` precision and `WINDOWS-1257` recall.
+
 ## [0.4.0] - 2026-11-23
 
 ### Added
