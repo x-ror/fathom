@@ -1,8 +1,10 @@
 # Port of the single-byte and UTF-8 parts of chardetng 1.0.0
 # (https://github.com/hsivonen/chardetng) to Crystal.
 #
-# Copyright Mozilla Foundation. Licensed under the Apache License, Version 2.0
-# or the MIT license, at your option. Tables in `chardetng/data.cr` are CC0.
+# Copyright Mozilla Foundation. chardetng is licensed under the Apache License,
+# Version 2.0 or the MIT license, at your option; this port uses it under the
+# MIT license, whose full text is in LICENSE-chardetng at the repository root.
+# Tables in `chardetng/data.cr` are CC0.
 #
 # Deliberately omitted relative to upstream: the CJK candidates (GBK, EUC-JP,
 # EUC-KR, Shift_JIS, Big5), ISO-2022-JP, and top-level-domain hints. `guess`

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `tools/heldout.cr`: held-out accuracy benchmark on the uchardet and chardetng test suites (downloaded on first run, scored by decode equivalence).
+- `LICENSE-chardetng` with chardetng's MIT license text, referenced from `src/fathom/chardetng.cr`, and an Acknowledgements section in the README crediting chardetng.
 
 ### Changed
 - Short Western text: the rare Latin encodings (`MACINTOSH`, `IBM850`, `IBM437`, `IBM852`) take an extra `-220` when a non-ASCII capital follows a lowercase letter ("aragonÉs"), which separates Mac Roman from CP850.
