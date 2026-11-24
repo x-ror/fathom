@@ -19,7 +19,7 @@ This document outlines the planned evolution of **fathom** from `0.1.0` to a sta
 - Corpus accuracy benchmark suite measuring precision and recall across languages and input sizes, establishing a baseline (including comparisons with `uchardet`/ICU) before changing scoring.
 - Accuracy regression gate in CI: a small corpus subset runs as specs with per-encoding thresholds, so a drop in accuracy fails the build. The full corpus stays outside CI and is driven by the CLI tool.
 - Decide canonical encoding labels aligned with the WHATWG Encoding Standard, exposing a separate `iconv` name where the label differs from what Crystal's `String.new(bytes, encoding)` accepts.
-- Alias rule for ISO/Windows pairs that differ only in `0x80..0x9F` (`ISO-8859-1`/`WINDOWS-1252`, `ISO-8859-9`/`WINDOWS-1254`, `ISO-8859-13`/`WINDOWS-1257`, `TIS-620`/`WINDOWS-874`): the pair is reported as a single encoding under the Windows label, since the Windows variant decodes both.
+- Alias rule for ISO/Windows pairs that differ only in `0x80..0x9F` (`ISO-8859-1`/`WINDOWS-1252`, `ISO-8859-9`/`WINDOWS-1254`, `ISO-8859-13`/`WINDOWS-1257`, `TIS-620`/`WINDOWS-874`): the pair is reported as a single encoding under the Windows label, since the Windows variant decodes both. (`ISO-8859-13` was split out in `0.4.0`: `WINDOWS-1257` leaves its `0xA1`/`0xA5` undefined.)
 - Detection results are platform-independent: an encoding is reported even when the platform's `iconv` cannot decode it. In that case `Fathom.decode` raises the same `ArgumentError` as `String.new`, and the README documents per-platform decode support.
 - Add a cross-platform spec (glibc, musl, macOS, and Windows in CI) verifying that every encoding name returned by `fathom` decodes via `String.new(bytes, name)`, with an explicit per-platform list of known-unsupported encodings.
 - Add `Fathom.decode(bytes) : String?` (detect encoding, strip leading BOM, and decode; the `invalid` argument is passed through to `String.new` unchanged).
@@ -39,13 +39,24 @@ This document outlines the planned evolution of **fathom** from `0.1.0` to a sta
   - DOS code pages (`IBM437`, `IBM850`, `IBM852`) and Mac encodings (`macintosh`, `x-mac-cyrillic`)
   - `ISO-8859-15` only if the accuracy corpus shows it is separable from `WINDOWS-1252` (they differ in eight positions).
 - Optional `language : String?` field on `Fathom::Match`.
+- Single-byte detection rebuilt on a Crystal port of [chardetng](https://github.com/hsivonen/chardetng) 1.0.0 (MIT, tables CC0), verified against upstream; `IBM437`/`IBM850`/`IBM852`/`MACINTOSH`/`X-MAC-CYRILLIC`/`KOI8-R` use byte-class tables derived from chardetng's by character. `ISO-8859-13` is its own encoding; visual Hebrew (`ISO-8859-8`) is reported as `WINDOWS-1255` when that decodes it. `ISO-8859-15` was not added.
 
 ## `0.5.0` — Multi-Byte Encodings (CJK), `ISO-2022-JP`, BOM-less `UTF-32` & Fuzz Testing
 
-- Stateful multi-byte `Fathom::Prober` implementations: `SHIFT_JIS`, `EUC-JP`, `GB18030` / `GBK`, `BIG5`, `EUC-KR`.
-- 7-bit `ISO-2022-JP` detection via escape sequences (prior to the ASCII fast path).
+Done (in `CHANGELOG.md` `[Unreleased]`):
+
+- Held-out accuracy benchmark (`tools/heldout.cr`) on the uchardet and chardetng test suites, scored by decode equivalence.
+- Short-input accuracy: Mac Roman vs CP850 case rule, a better non-scoring fallback, and per-language bigram models settling Latin near-ties.
+- Bigram probers that no longer affect results removed (`tables.cr` −30%, binaries −20%); `--release` builds down from ~2.5 minutes to ~12 seconds.
+- chardetng's MIT license shipped as `LICENSE-chardetng`.
+
+Planned:
+
+- CJK by porting chardetng's multi-byte candidates (`SHIFT_JIS`, `EUC-JP`, `GBK`, `BIG5`, `EUC-KR`) with the same upstream-parity check as the single-byte port. chardetng relies on `encoding_rs` decoders, so Fathom needs its own allocation-free decoders built from the WHATWG Encoding Standard indexes.
+- 7-bit `ISO-2022-JP` detection via escape sequences (prior to the ASCII fast path), also from chardetng.
 - BOM-less `UTF-32LE` / `UTF-32BE` detection (omitting error-prone NUL-less `UTF-16`).
 - Fuzz and property specs over random and truncated byte slices to catch out-of-bounds bugs in multi-byte state machines.
+- CJK samples in `corpus/` and in the accuracy gate; `tools/heldout.cr` already contains CJK test files to measure against.
 
 ## `0.6.0` — Real-World Context & Targeted Optimizations
 
@@ -65,7 +76,7 @@ This document outlines the planned evolution of **fathom** from `0.1.0` to a sta
 
 ## After `1.0`
 
-- `WINDOWS-1258` (Vietnamese with combining diacritics) and visual/logical `ISO-8859-8` (Hebrew) — deferred because both need handling beyond a byte-to-letter table.
+- `WINDOWS-1258` (Vietnamese with combining diacritics) and `ISO-8859-4`: the chardetng port already scores both, but reporting them needs corpus samples (and decomposed-tone text for Vietnamese).
 
 ## Out of Scope
 
