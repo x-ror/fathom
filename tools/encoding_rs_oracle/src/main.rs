@@ -3,7 +3,8 @@
 // Replays encoding_rs exactly the way chardetng drives its decoders: one byte per
 // decode_to_utf16_without_replacement call into a two-unit buffer, then an empty
 // final call with last=true. Every step is recorded as InputEmpty / Malformed(len,
-// good) / OutputFull plus the UTF-16 units written.
+// good) / OutputFull, whether the byte was consumed (`read`; shown as `~` when it
+// wasn't, not recorded for the final call) and the UTF-16 units written.
 //
 //   cargo run --release -- fixture > ../../spec/fixtures/decoder_traces.tsv
 //   cargo run --release -- hash ENC 3        # per-first-byte hash of all <=3-byte sequences
@@ -23,10 +24,11 @@ fn enc(name: &str) -> &'static Encoding {
     }
 }
 
-// One step: kind (0 empty, 1 malformed), malformed len, good len, written, units.
+// One step: kind (0 empty, 1 malformed, 2 output full), malformed len, good len,
+// written, two units, consumed (always 1 for the final call, which has no input).
 fn step(d: &mut Decoder, src: &[u8], last: bool, out: &mut Vec<u8>) {
     let mut dst = [0u16; 2];
-    let (r, _read, written) = d.decode_to_utf16_without_replacement(src, &mut dst, last);
+    let (r, read, written) = d.decode_to_utf16_without_replacement(src, &mut dst, last);
     let (k, a, b) = match r {
         DecoderResult::InputEmpty => (0u8, 0u8, 0u8),
         DecoderResult::Malformed(a, b) => (1, a, b),
@@ -34,6 +36,7 @@ fn step(d: &mut Decoder, src: &[u8], last: bool, out: &mut Vec<u8>) {
     };
     out.extend_from_slice(&[k, a, b, written as u8]);
     for i in 0..2 { let u = if i < written { dst[i] } else { 0 }; out.extend_from_slice(&u.to_le_bytes()); }
+    out.push(if last || read == src.len() { 1 } else { 0 });
 }
 
 fn trace(e: &'static Encoding, bytes: &[u8]) -> Vec<u8> {
@@ -47,10 +50,11 @@ fn trace(e: &'static Encoding, bytes: &[u8]) -> Vec<u8> {
 fn fnv(h: &mut u64, data: &[u8]) { for &x in data { *h ^= x as u64; *h = h.wrapping_mul(0x100000001b3); } }
 
 fn text(t: &[u8]) -> String {
-    t.chunks(8).map(|c| {
+    t.chunks(9).map(|c| {
         let w = c[3] as usize;
         let units: Vec<String> = (0..w).map(|i| format!("{:04X}", u16::from_le_bytes([c[4 + 2 * i], c[5 + 2 * i]]))).collect();
-        match c[0] { 0 => format!("E[{}]", units.join(",")), 1 => format!("M{}/{}[{}]", c[1], c[2], units.join(",")), _ => "F".into() }
+        let unread = if c[8] == 0 { "~" } else { "" };
+        match c[0] { 0 => format!("E{}[{}]", unread, units.join(",")), 1 => format!("M{}/{}{}[{}]", c[1], c[2], unread, units.join(",")), _ => format!("F{}", unread) }
     }).collect::<Vec<_>>().join(" ")
 }
 

@@ -2,19 +2,21 @@ require "./spec_helper"
 require "../src/fathom/whatwg/decoders"
 
 # Each row: encoding, input bytes as hex, and encoding_rs's step-by-step trace
-# (tools/encoding_rs_oracle, driven one byte per call as chardetng does).
+# (tools/encoding_rs_oracle, driven one byte per call as chardetng does); `~`
+# marks a step that left its byte unconsumed.
 private TRACES = File.read_lines(File.expand_path("fixtures/decoder_traces.tsv", __DIR__)).map(&.split('\t'))
 
 private def step_text(step : Fathom::WHATWG::Step) : String
   units = [] of String
   units << "%04X" % step.u0 if step.written > 0
   units << "%04X" % step.u1 if step.written > 1
+  unread = step.consumed? ? "" : "~"
   if step.output_full?
-    "F"
+    "F#{unread}"
   elsif step.malformed?
-    "M#{step.malformed}/#{step.good}[#{units.join(",")}]"
+    "M#{step.malformed}/#{step.good}#{unread}[#{units.join(",")}]"
   else
-    "E[#{units.join(",")}]"
+    "E#{unread}[#{units.join(",")}]"
   end
 end
 
