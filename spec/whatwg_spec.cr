@@ -33,6 +33,19 @@ describe Fathom::WHATWG do
   it "returns 0 for pointers outside an index" do
     [-1, 11280].each { |p| Fathom::WHATWG.jis0208(p).should eq 0 }
     [-1, 19782].each { |p| Fathom::WHATWG.big5(p).should eq 0 }
+    [Int32::MIN, Int32::MAX].each do |p|
+      Fathom::WHATWG.jis0208(p).should eq 0
+      Fathom::WHATWG.jis0212(p).should eq 0
+      Fathom::WHATWG.iso_2022_jp_katakana(p).should eq 0
+      Fathom::WHATWG.euc_kr(p).should eq 0
+      Fathom::WHATWG.gb18030(p).should eq 0
+      Fathom::WHATWG.big5(p).should eq 0
+      Fathom::WHATWG.gb18030_ranges(p).should eq 0
+    end
+  end
+
+  it "has no index entry for the Big5 pointers that decode to two code points" do
+    [1133, 1135, 1164, 1166].each { |p| Fathom::WHATWG.big5(p).should eq 0 }
   end
 
   it "implements the index gb18030 ranges code point algorithm" do

@@ -30,7 +30,10 @@ module Fathom
       u16(GB18030, pointer)
     end
 
+    # NOTE: Pointers 1133, 1135, 1164 and 1166 have no index entry: the Big5
+    # decoder itself maps them to two code points each (Ê̄, Ê̌, ê̄, ê̌).
     def self.big5(pointer : Int32) : Int32
+      return 0 if pointer < BIG5_FIRST_POINTER
       i = pointer - BIG5_FIRST_POINTER
       low = u16(BIG5_LOW, i)
       return 0 if low == 0
