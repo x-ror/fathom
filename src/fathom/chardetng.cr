@@ -17,9 +17,13 @@ module Fathom
     private ORDINAL_BONUS                             =  300_i64
     private COPYRIGHT_BONUS                           =  222_i64
     private IMPLAUSIBLE_LATIN_CASE_TRANSITION_PENALTY = -180_i64
-    private NON_LATIN_CAPITALIZATION_BONUS            =   40_i64
-    private NON_LATIN_ALL_CAPS_PENALTY                =  -40_i64
-    private NON_LATIN_MIXED_CASE_PENALTY              =  -20_i64
+    # Fathom extension: extra penalty for the rare Latin encodings when a
+    # non-ASCII capital follows a lowercase letter ("aragonÉs", "bactÄrias"),
+    # the signature of reading Mac Roman as CP850 or the other way round.
+    private RARE_CASE_TRANSITION_PENALTY   = -220_i64
+    private NON_LATIN_CAPITALIZATION_BONUS =   40_i64
+    private NON_LATIN_ALL_CAPS_PENALTY     =  -40_i64
+    private NON_LATIN_MIXED_CASE_PENALTY   =  -20_i64
 
     # Latin letter caseless class
     private LATIN_LETTER =   1_u8
@@ -360,7 +364,7 @@ module Fathom
       end
 
       @[AlwaysInline]
-      private def step_latin_case(klass : UInt8, ascii_pair : Bool) : Int64
+      private def step_latin_case(klass : UInt8, ascii_pair : Bool, ascii : Bool) : Int64
         if (klass >> 7) == 0
           penalty = @latin_case_state.all_caps? && !ascii_pair ? IMPLAUSIBLE_LATIN_CASE_TRANSITION_PENALTY : 0_i64
           @latin_case_state = LatinCaseState::Lower
@@ -375,7 +379,9 @@ module Fathom
             0_i64
           in .lower?
             @latin_case_state = LatinCaseState::Upper
-            ascii_pair ? 0_i64 : IMPLAUSIBLE_LATIN_CASE_TRANSITION_PENALTY
+            penalty = ascii_pair ? 0_i64 : IMPLAUSIBLE_LATIN_CASE_TRANSITION_PENALTY
+            penalty += RARE_CASE_TRANSITION_PENALTY if @has_twins && !ascii
+            penalty
           end
         end
       end
@@ -478,7 +484,7 @@ module Fathom
           else
             # Penalizing lower case after two upper case is important for
             # avoiding misdetecting windows-1250 as windows-1252 (byte 0x9F).
-            score += step_latin_case(klass, ascii_pair)
+            score += step_latin_case(klass, ascii_pair, ascii)
           end
 
           # Treat pairing space-like, which can be non-ASCII, with ASCII as
@@ -630,7 +636,7 @@ module Fathom
             # We compute case penalties for French only
             @latin_case_state = LatinCaseState::Space
           else
-            score += step_latin_case(klass, ascii_pair)
+            score += step_latin_case(klass, ascii_pair, ascii)
           end
 
           # Count only Arabic word length and ignore French

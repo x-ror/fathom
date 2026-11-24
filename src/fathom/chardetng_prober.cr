@@ -88,7 +88,7 @@ module Fathom
             winner = ptr[best_idx][0]
             max = best
           else
-            if default_score = score_for(ptr, count, DEFAULT_ENCODING)
+            if (default_score = score_for(ptr, count, DEFAULT_ENCODING)) && default_score >= best
               winner = DEFAULT_ENCODING
               win_score = default_score
             else
@@ -101,6 +101,8 @@ module Fathom
           end
         end
 
+        winner, max = rerank_latin(ptr, count, winner, max, bytes, stats)
+
         runner_up = 0_i64
         i = 0
         while i < count
@@ -108,7 +110,7 @@ module Fathom
           runner_up = score if encoding != winner && score > runner_up
           i += 1
         end
-        margin = (max - runner_up).to_f64
+        margin = Math.max(max - runner_up, 0_i64).to_f64
         confidence = TIE_CONFIDENCE + (0.99 - TIE_CONFIDENCE) * margin / (margin + MARGIN_SCALE)
         yield Match.new(winner, confidence, language: language(winner, bytes, stats))
 
@@ -116,7 +118,7 @@ module Fathom
         while i < count
           encoding, score = ptr[i]
           if encoding != winner && score > 0
-            yield Match.new(encoding, 0.49 * score / max)
+            yield Match.new(encoding, Math.min(0.49 * score / max, 0.49))
           end
           i += 1
         end
@@ -129,6 +131,41 @@ module Fathom
       private def fold(name : String, hebrew_ok : Bool) : String
         return (hebrew_ok ? "WINDOWS-1255" : name) if name == ISO_8859_8_DATA.encoding
         Encoding.canonical_name(name)
+      end
+
+      private LATIN_FAMILY   = {"WINDOWS-1252", "WINDOWS-1250", "ISO-8859-2", "WINDOWS-1254", "WINDOWS-1257", "ISO-8859-13"}
+      private RERANK_PERCENT = 50
+
+      # Among Latin Windows/ISO encodings scoring within RERANK_PERCENT of the
+      # winner, lets the per-language bigram models pick.
+      private def rerank_latin(ptr : Pointer({String, Int64}), count : Int32, winner : String, max : Int64, bytes : Bytes, stats : ByteStats) : {String, Int64}
+        return {winner, max} unless LATIN_FAMILY.includes?(winner)
+        best = winner
+        best_score = max
+        best_conf = legacy_confidence(winner, bytes, stats)
+        i = 0
+        while i < count
+          encoding, score = ptr[i]
+          if encoding != winner && LATIN_FAMILY.includes?(encoding) && score > 0 && score * 100 >= max * RERANK_PERCENT
+            conf = legacy_confidence(encoding, bytes, stats)
+            if conf > best_conf
+              best, best_score, best_conf = encoding, score, conf
+            end
+          end
+          i += 1
+        end
+        {best, best_score}
+      end
+
+      private def legacy_confidence(encoding : String, bytes : Bytes, stats : ByteStats) : Float64
+        best = 0.0
+        SingleByte::PROBERS.each do |table|
+          next unless table.is_a?(SingleByte::Table) && table.encoding == encoding
+          if (match = table.probe(bytes, stats)) && match.confidence > best
+            best = match.confidence
+          end
+        end
+        best
       end
 
       private def score_for(ptr : Pointer({String, Int64}), count : Int32, encoding : String) : Int64?

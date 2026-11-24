@@ -7,45 +7,34 @@ require "../src/fathom/encoding"
 
 MODELS_DIR = File.expand_path("models", __DIR__)
 
-# {encoding, model, requires_high_letters, handicap}.
-# The KOI8-U handicap is a prior of 2 nats (40 / SCORE_SCALE) for KOI8-R: on a handful
-# of letters the `uk` model beats `ru` by chance, and without Ukrainian-only letters
-# both encodings decode identically.
+# {encoding, model, requires_high_letters}.
+# Detection is chardetng's (src/fathom/chardetng.cr); these probers only settle
+# near-ties among the Latin Windows/ISO encodings and report Match#language for
+# encodings shared by several languages. Encodings whose language is fixed get
+# it from Chardetng::Prober#language and need no prober here.
 PROBER_SPECS = [
-  {"WINDOWS-1252", "western", false, 0},
-  {"WINDOWS-1250", "pl", false, 0},
-  {"WINDOWS-1250", "cs", false, 0},
-  {"WINDOWS-1250", "hu", false, 0},
-  {"ISO-8859-2", "pl", false, 0},
-  {"ISO-8859-2", "cs", false, 0},
-  {"ISO-8859-2", "hu", false, 0},
-  {"WINDOWS-1257", "lt", false, 0},
-  {"WINDOWS-1257", "lv", false, 0},
-  {"ISO-8859-13", "lt", false, 0},
-  {"ISO-8859-13", "lv", false, 0},
-  {"WINDOWS-1254", "tr", false, 0},
-  {"WINDOWS-1253", "el", true, 0},
-  {"ISO-8859-7", "el", true, 0},
-  {"WINDOWS-1255", "he", true, 0},
-  {"WINDOWS-1256", "ar", true, 0},
-  {"ISO-8859-6", "ar", true, 0},
-  {"WINDOWS-874", "th", true, 0},
-  {"WINDOWS-1251", "ru", true, 0},
-  {"WINDOWS-1251", "uk", true, 0},
-  {"WINDOWS-1251", "be", true, 0},
-  {"KOI8-R", "ru", true, 0},
-  {"KOI8-U", "uk", true, 40},
-  {"ISO-8859-5", "ru", true, 0},
-  {"ISO-8859-5", "uk", true, 0},
-  {"IBM866", "ru", true, 0},
-  {"IBM850", "western", false, 0},
-  {"IBM437", "western", false, 0},
-  {"IBM852", "pl", false, 0},
-  {"IBM852", "cs", false, 0},
-  {"IBM852", "hu", false, 0},
-  {"MACINTOSH", "western", false, 0},
-  {"X-MAC-CYRILLIC", "ru", true, 0},
-  {"X-MAC-CYRILLIC", "uk", true, 0},
+  {"WINDOWS-1252", "western", false},
+  {"WINDOWS-1250", "pl", false},
+  {"WINDOWS-1250", "cs", false},
+  {"WINDOWS-1250", "hu", false},
+  {"ISO-8859-2", "pl", false},
+  {"ISO-8859-2", "cs", false},
+  {"ISO-8859-2", "hu", false},
+  {"WINDOWS-1257", "lt", false},
+  {"WINDOWS-1257", "lv", false},
+  {"ISO-8859-13", "lt", false},
+  {"ISO-8859-13", "lv", false},
+  {"WINDOWS-1254", "tr", false},
+  {"WINDOWS-1251", "ru", true},
+  {"WINDOWS-1251", "uk", true},
+  {"WINDOWS-1251", "be", true},
+  {"ISO-8859-5", "ru", true},
+  {"ISO-8859-5", "uk", true},
+  {"IBM852", "pl", false},
+  {"IBM852", "cs", false},
+  {"IBM852", "hu", false},
+  {"X-MAC-CYRILLIC", "ru", true},
+  {"X-MAC-CYRILLIC", "uk", true},
 ]
 
 KIND_OTHER = 0_u8
@@ -105,9 +94,8 @@ def byte_entry(byte : Int32, char : Char, model : ModelSpec, requires_high_lette
     return (kind << 6) | order
   end
 
-  # High letters outside the model's alphabet are penalized as Junk, except rare
-  # Thai-script glyphs omitted from the 63-slot Thai alphabet.
-  if char.letter? && !(model.name == "th" && (0x0E00..0x0E7F).includes?(char.ord))
+  # High letters outside the model's alphabet are penalized as Junk.
+  if char.letter?
     return KIND_JUNK << 6
   end
 
@@ -155,15 +143,12 @@ puts
 puts "    # Precomputed single-byte bigram probers (WINDOWS-1252 first to break ties on shared bytes)."
 puts "    PROBERS = ["
 
-PROBER_SPECS.each do |enc, model_name, requires_high_letters, handicap|
+PROBER_SPECS.each do |enc, model_name, requires_high_letters|
   m = models[model_name]
   iconv_enc = Fathom::Encoding.iconv_name(enc)
   entries = (0..255).map do |b|
     char = if b < 0x80
              b.chr
-           elsif enc == "WINDOWS-874" && ((0xDB..0xDE).includes?(b) || b >= 0xFC)
-             # Explicit WHATWG undefined slots in WINDOWS-874 (avoid macOS iconv PUA/extensions).
-             '\u{FFFD}'
            else
              String.new(Bytes[b.to_u8], iconv_enc, invalid: :skip)[0]? || '\u{FFFD}'
            end
@@ -177,7 +162,6 @@ PROBER_SPECS.each do |enc, model_name, requires_high_letters, handicap|
   puts "        load_byte_map("
   emit_bytes_literal(entries, "          ")
   puts "        ),"
-  puts "        #{handicap}," unless handicap == 0
   puts "      ),"
 end
 

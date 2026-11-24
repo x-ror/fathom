@@ -90,17 +90,11 @@ module Fathom
       # Bit-packed `(CharKind << 6) | order` lookup table for bytes `0x00..0xFF`.
       getter byte_map : StaticArray(UInt8, 256)
 
-      # Score handicap (in quantized bigram units) subtracted once per input.
-      # It acts as a prior against this prober that fades as the input grows,
-      # so short text without Ukrainian-only letters reads as KOI8-R, not KOI8-U.
-      getter handicap : Int32
-
       def initialize(
         @encoding : String,
         @model : LanguageModel,
         @requires_high_letters : Bool,
         @byte_map : StaticArray(UInt8, 256),
-        @handicap : Int32 = 0,
       )
       end
 
@@ -220,7 +214,6 @@ module Fathom
 
         return nil if pairs == 0
 
-        total -= @handicap
         avg = total.to_f64 / (pairs * SCORE_SCALE)
         return nil if avg <= 0.0
 

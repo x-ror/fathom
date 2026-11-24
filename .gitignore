@@ -21,3 +21,6 @@
 
 # Cached Wikipedia training articles (re-fetched via tools/train_models.cr -- --fetch)
 /tools/models/sources/
+
+# Held-out benchmark downloads (re-fetched via tools/heldout.cr)
+/tools/heldout_data/
