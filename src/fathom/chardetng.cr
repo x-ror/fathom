@@ -1,16 +1,15 @@
-# Port of the single-byte and UTF-8 parts of chardetng 1.0.0
-# (https://github.com/hsivonen/chardetng) to Crystal.
+# Port of chardetng 1.0.0 (https://github.com/hsivonen/chardetng) to Crystal.
 #
 # Copyright Mozilla Foundation. chardetng is licensed under the Apache License,
 # Version 2.0 or the MIT license, at your option; this port uses it under the
 # MIT license, whose full text is in LICENSE-chardetng at the repository root.
 # Tables in `chardetng/data.cr` are CC0.
 #
-# Deliberately omitted relative to upstream: the CJK candidates (GBK, EUC-JP,
-# EUC-KR, Shift_JIS, Big5), ISO-2022-JP, and top-level-domain hints. `guess`
-# behaves like upstream `guess(None, Utf8Detection::Allow)` with those
-# candidates disqualified.
+# The CJK and ISO-2022-JP candidates are in `chardetng/cjk.cr`. Deliberately
+# omitted relative to upstream: top-level-domain hints. `guess` behaves like
+# upstream `guess(None, Utf8Detection::Allow)` with ISO-2022-JP allowed.
 require "./chardetng/data"
+require "./chardetng/cjk"
 
 module Fathom
   module Chardetng
@@ -814,9 +813,10 @@ module Fathom
       # Most candidates a detector holds (upstream minus CJK, plus Fathom's extensions).
       CAPACITY = 25
 
-      # Most entries `#each_score` can yield: every candidate plus visual Hebrew
-      # (`CAPACITY + 1`, spelled out because it's used as a type argument).
-      MAX_SCORES = 26
+      # Most entries `#each_score` can yield: every single-byte candidate, visual
+      # Hebrew and the five CJK candidates (`CAPACITY + 6`, spelled out because
+      # it's used as a type argument).
+      MAX_SCORES = 31
 
       private WIN1252_IDX  = 0
       private WIN1250_IDX  = 2
@@ -824,7 +824,14 @@ module Fathom
       private LOGICAL_IDX  = 8
 
       @utf8 = Utf8Candidate.new
+      @iso2022 = Iso2022Candidate.new
       @visual = Candidate.visual(ISO_8859_8_DATA)
+      # CJK candidates, in upstream order (they precede the single-byte ones).
+      @gbk = GbkCandidate.new
+      @euc_jp = EucJpCandidate.new
+      @euc_kr = EucKrCandidate.new
+      @shift_jis = ShiftJisCandidate.new
+      @big5 = Big5Candidate.new
       # Upstream candidate order (minus CJK); ties go to the earlier candidate.
       @normal : StaticArray(Candidate, Detector::CAPACITY)
       @normal_len : Int32
@@ -921,11 +928,18 @@ module Fathom
       # Returns the guessed encoding and its score (`0` when no candidate scored
       # above zero and the guess is the windows-1252 default, or for UTF-8).
       def result : {String, Int64}
+        return {@iso2022.encoding, 0_i64} if @non_ascii_seen == 0 && @esc_seen && @iso2022.score
         return {"UTF-8", 0_i64} if @utf8.score
 
         twin_plausible = latin_twin_plausible?
         encoding = WINDOWS_1252_DATA.encoding
         max = 0_i64
+        cjk_scores.each do |(name, score)|
+          if score && score > max
+            max = score
+            encoding = name
+          end
+        end
         ptr = @normal.to_unsafe
         i = 0
         while i < @normal_len
@@ -944,9 +958,12 @@ module Fathom
         {encoding, max}
       end
 
-      # Yields each still-qualified single-byte candidate's encoding and score
-      # (windows-1252 may be yielded twice: generic and Icelandic tables).
+      # Yields each still-qualified CJK and single-byte candidate's encoding and
+      # score (windows-1252 may be yielded twice: generic and Icelandic tables).
       def each_score(& : String, Int64 ->) : Nil
+        cjk_scores.each do |(name, score)|
+          yield name, score if score
+        end
         twin_plausible = latin_twin_plausible?
         ptr = @normal.to_unsafe
         i = 0
@@ -959,6 +976,17 @@ module Fathom
         if score = @visual.guess_score(twin_plausible)
           yield ISO_8859_8_DATA.encoding, score
         end
+      end
+
+      # CJK encodings and scores in upstream candidate order.
+      private def cjk_scores : StaticArray({String, Int64?}, 5)
+        StaticArray[
+          {@gbk.encoding, @gbk.guess_score},
+          {@euc_jp.encoding, @euc_jp.guess_score},
+          {@euc_kr.encoding, @euc_kr.guess_score},
+          {@shift_jis.encoding, @shift_jis.guess_score},
+          {@big5.encoding, @big5.guess_score},
+        ]
       end
 
       # Whether every byte fed so far is defined in windows-1255.
@@ -976,6 +1004,12 @@ module Fathom
 
       private def feed_all(buffer : Bytes, last : Bool) : Nil
         @utf8.feed(buffer, last)
+        @iso2022.feed(buffer, last)
+        @gbk.feed(buffer, last)
+        @euc_jp.feed(buffer, last)
+        @euc_kr.feed(buffer, last)
+        @shift_jis.feed(buffer, last)
+        @big5.feed(buffer, last)
         @visual.feed(buffer, last)
         ptr = @normal.to_unsafe
         i = 0

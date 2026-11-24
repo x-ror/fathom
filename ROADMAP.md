@@ -50,12 +50,12 @@ Done (in `CHANGELOG.md` `[Unreleased]`):
 - Bigram probers that no longer affect results removed (`tables.cr` −30%, binaries −20%); `--release` builds down from ~2.5 minutes to ~12 seconds.
 - chardetng's MIT license shipped as `LICENSE-chardetng`.
 - BOM-less `UTF-32LE` / `UTF-32BE` detection (omitting error-prone NUL-less `UTF-16`).
-- WHATWG multi-byte indexes and allocation-free `Shift_JIS`, `EUC-JP`, `EUC-KR`, `Big5`, `gb18030`/`GBK` and `ISO-2022-JP` decoders, matching encoding_rs step by step (not yet used for detection).
+- WHATWG multi-byte indexes and allocation-free `Shift_JIS`, `EUC-JP`, `EUC-KR`, `Big5`, `gb18030`/`GBK` and `ISO-2022-JP` decoders, matching encoding_rs step by step.
+- chardetng's CJK (`GBK`, `EUC-JP`, `EUC-KR`, `Shift_JIS`, `Big5`) and `ISO-2022-JP` candidates ported over those decoders, matching unmodified chardetng; `Fathom.detect` doesn't report CJK yet.
 
 Planned:
 
-- CJK by porting chardetng's multi-byte candidates (`SHIFT_JIS`, `EUC-JP`, `GBK`, `BIG5`, `EUC-KR`) with the same upstream-parity check as the single-byte port. chardetng relies on `encoding_rs` decoders, so Fathom needs its own allocation-free decoders built from the WHATWG Encoding Standard indexes.
-- 7-bit `ISO-2022-JP` detection via escape sequences (prior to the ASCII fast path), also from chardetng.
+- Report the CJK encodings and `ISO-2022-JP` from `Fathom.detect`: add them to `Encoding::SUPPORTED` with per-platform `iconv` names, and check escape sequences before the ASCII fast path so 7-bit `ISO-2022-JP` isn't reported as `UTF-8`.
 - Fuzz and property specs over random and truncated byte slices to catch out-of-bounds bugs in multi-byte state machines.
 - CJK samples in `corpus/` and in the accuracy gate; `tools/heldout.cr` already contains CJK test files to measure against.
 

@@ -3,8 +3,8 @@ require "../src/fathom/chardetng"
 
 private CORPUS_DIR = File.expand_path("fixtures/corpus", __DIR__)
 
-# Expected guesses come from upstream chardetng 1.0.0 with the CJK and
-# ISO-2022-JP candidates disqualified (`guess(None, Utf8Detection::Allow)`).
+# Expected guesses come from upstream chardetng 1.0.0
+# (`guess(None, Utf8Detection::Allow)`, ISO-2022-JP allowed).
 # Columns: path relative to fixtures/corpus, prefix length (-1 = whole file), guess.
 private EXPECTED = File.read_lines(File.expand_path("fixtures/chardetng_expected.tsv", __DIR__)).map(&.split('\t'))
 
@@ -37,6 +37,21 @@ describe Fathom::Chardetng do
     end
   end
 
+  it "detects CJK and ISO-2022-JP (upstream test cases)" do
+    {
+      {"日本語", "ISO-2022-JP", "1B2442467C4B5C386C1B2842"},
+      {"这是一个字符编码测试。", "GBK", "D5E2CAC7D2BBB8F6D7D6B7FBB1E0C2EBB2E2CAD4A1A3"},
+      {"這是一個字符編碼測試。", "BIG5", "B36FAC4FA440ADD3A672B2C5BD73BD58B4FAB8D5A143"},
+      {"이것은 문자 인코딩 테스트입니다.", "EUC-KR", "C0CCB0CDC0BA20B9AEC0DA20C0CEC4DAB5F920C5D7BDBAC6AEC0D4B4CFB4D92E"},
+      {"これは文字実験です。", "SHIFT_JIS", "82B182EA82CD95B68E9A8EC08CB182C582B78142"},
+      {"これは文字実験です。", "EUC-JP", "A4B3A4ECA4CFCAB8BBFABCC2B8B3A4C7A4B9A1A3"},
+      {"ﾊｰﾄﾞｳｪｱﾊｰﾄﾞｳｪｱﾊｰﾄﾞｳｪｱﾊｰﾄﾞｳｪｱﾊｰﾄﾞｳｪｱ", "SHIFT_JIS", "CAB0C4DEB3AAB1CAB0C4DEB3AAB1CAB0C4DEB3AAB1CAB0C4DEB3AAB1CAB0C4DEB3AAB1"},
+    }.each do |text, encoding, hex|
+      bytes = Bytes.new(hex.size // 2) { |i| hex[2 * i, 2].to_u8(16) }
+      {text, Fathom::Chardetng.guess(bytes)}.should eq({text, encoding})
+    end
+  end
+
   it "detects visual-order Hebrew (upstream test case)" do
     Fathom::Chardetng.guess(".\xed\xe9\xe5\xe5\xfa \xe3\xe5\xe3\xe9\xf7 \xef\xe7\xe1\xee \xe5\xe4\xe6".to_slice).should eq "ISO-8859-8"
   end
@@ -47,8 +62,8 @@ describe Fathom::Chardetng do
     Fathom::Chardetng.guess("caf\xC3\xA9".to_slice).should eq "UTF-8"
   end
 
-  it "sizes MAX_SCORES for every candidate plus visual Hebrew" do
-    Fathom::Chardetng::Detector::MAX_SCORES.should eq Fathom::Chardetng::Detector::CAPACITY + 1
+  it "sizes MAX_SCORES for every single-byte candidate, visual Hebrew and the five CJK candidates" do
+    Fathom::Chardetng::Detector::MAX_SCORES.should eq Fathom::Chardetng::Detector::CAPACITY + 6
   end
 
   it "raises when fed after the last chunk" do
