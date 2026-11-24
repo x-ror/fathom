@@ -166,6 +166,10 @@ module Fathom
       end
 
       if stats.null_bytes > 0
+        if utf32 = UTF.detect_utf32(sample, stats)
+          yield utf32
+          return
+        end
         if utf16 = UTF.detect_utf16(sample, stats)
           yield utf16
           return

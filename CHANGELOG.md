@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `tools/heldout.cr`: held-out accuracy benchmark on the uchardet and chardetng test suites (downloaded on first run, scored by decode equivalence).
 - `LICENSE-chardetng` with chardetng's MIT license text, referenced from `src/fathom/chardetng.cr`, and an Acknowledgements section in the README crediting chardetng.
+- BOM-less `UTF-32LE`/`UTF-32BE` detection (`Fathom::UTF.detect_utf32`): every 4-byte unit must be a valid, non-NUL, non-control code point, and at least 4 units are required (on random NUL-heavy binary, 2–3 units passed ~0.25% of the time, 4+ about 0.01%).
 
 ### Changed
 - Short Western text: the rare Latin encodings (`MACINTOSH`, `IBM850`, `IBM437`, `IBM852`) take an extra `-220` when a non-ASCII capital follows a lowercase letter ("aragonÉs"), which separates Mac Roman from CP850.

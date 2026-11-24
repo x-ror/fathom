@@ -77,6 +77,44 @@ module Fathom
       Match.new(le ? "UTF-16LE" : "UTF-16BE", 0.95)
     end
 
+    # Fewest 4-byte units accepted as BOM-less UTF-32.
+    UTF32_MIN_UNITS = 4
+
+    # Detects BOM-less UTF-32LE or UTF-32BE: every 4-byte unit (an incomplete
+    # trailing unit is ignored) must be a non-NUL, non-surrogate code point up to
+    # U+10FFFF other than a binary control character. Text in one byte order can't
+    # pass in the other, since its units would exceed U+10FFFF.
+    #
+    # NOTE: At least `UTF32_MIN_UNITS` units are required: on 2-3 units, random
+    # NUL-heavy binary passed ~0.25% of the time, on 4+ about 0.01%.
+    def self.detect_utf32(bytes : Bytes, stats : ByteStats) : Match?
+      units = bytes.size // 4
+      return nil if units < UTF32_MIN_UNITS || stats.null_bytes < units
+
+      if utf32_units_valid?(bytes, units, little_endian: true)
+        Match.new("UTF-32LE", 0.95)
+      elsif utf32_units_valid?(bytes, units, little_endian: false)
+        Match.new("UTF-32BE", 0.95)
+      end
+    end
+
+    private def self.utf32_units_valid?(bytes : Bytes, units : Int32, little_endian : Bool) : Bool
+      ptr = bytes.to_unsafe
+      i = 0
+      while i < units
+        b0, b1, b2, b3 = ptr[i * 4], ptr[i * 4 + 1], ptr[i * 4 + 2], ptr[i * 4 + 3]
+        cp = if little_endian
+               b0.to_u32 | (b1.to_u32 << 8) | (b2.to_u32 << 16) | (b3.to_u32 << 24)
+             else
+               (b0.to_u32 << 24) | (b1.to_u32 << 16) | (b2.to_u32 << 8) | b3.to_u32
+             end
+        return false if cp == 0 || cp > 0x10FFFF || (0xD800 <= cp <= 0xDFFF)
+        return false if cp <= 0x08 || (0x0E <= cp <= 0x1F) || cp == 0x7F
+        i += 1
+      end
+      true
+    end
+
     # Probes for slightly corrupted UTF-8 based on the ratio of valid multi-byte
     # UTF-8 sequences to invalid high bytes (ignoring ASCII bytes).
     def self.probe_tolerant_utf8(bytes : Bytes, stats : ByteStats) : Match?
