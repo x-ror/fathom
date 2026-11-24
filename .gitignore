@@ -24,3 +24,6 @@
 
 # Held-out benchmark downloads (re-fetched via tools/heldout.cr)
 /tools/heldout_data/
+
+# WHATWG index download for tools/gen_whatwg_indexes.cr
+/tools/whatwg_data/

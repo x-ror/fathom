@@ -136,6 +136,7 @@ crystal run tools/train_models.cr -- --fetch        # train bigram models from W
 crystal run tools/gen_tables.cr > src/fathom/tables.cr # regenerate precomputed byte tables
 crystal run tools/gen_chardetng_data.cr -- path/to/chardetng-1.0.0/src/data.rs  # regenerate chardetng tables
 crystal run tools/heldout.cr                          # held-out accuracy on the uchardet/chardetng test suites
+crystal run tools/gen_whatwg_indexes.cr               # regenerate the WHATWG multi-byte indexes
 crystal run --release bench/benchmark.cr             # run throughput benchmark
 ```
 
@@ -143,6 +144,8 @@ crystal run --release bench/benchmark.cr             # run throughput benchmark
 
 Single-byte detection is a Crystal port of [chardetng](https://github.com/hsivonen/chardetng) 1.0.0 by Henri Sivonen (copyright Mozilla Foundation), extended with DOS, Mac and `KOI8-R` encodings. chardetng's code is used under the MIT license (see [`LICENSE-chardetng`](LICENSE-chardetng)); its data tables are dedicated to the public domain (CC0).
 
+The multi-byte code point indexes in `src/fathom/whatwg/` are generated from the [WHATWG Encoding Standard](https://encoding.spec.whatwg.org/) (copyright WHATWG) and are licensed under the BSD 3-Clause License (see [`LICENSE-whatwg`](LICENSE-whatwg)).
+
 ## License
 
-MIT (see [`LICENSE`](LICENSE)). The chardetng port in `src/fathom/chardetng.cr` is also covered by chardetng's MIT license (see [`LICENSE-chardetng`](LICENSE-chardetng)).
+MIT (see [`LICENSE`](LICENSE)). The chardetng port in `src/fathom/chardetng.cr` is also covered by chardetng's MIT license (see [`LICENSE-chardetng`](LICENSE-chardetng)). The WHATWG indexes in `src/fathom/whatwg/` are under the BSD 3-Clause License (see [`LICENSE-whatwg`](LICENSE-whatwg)).

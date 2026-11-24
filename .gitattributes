@@ -2,3 +2,5 @@
 src/fathom/tables.cr linguist-generated=true
 corpus/** -text
 spec/fixtures/** -text
+src/fathom/chardetng/data.cr linguist-generated=true
+src/fathom/whatwg/indexes.cr linguist-generated=true
