@@ -138,6 +138,10 @@ crystal run tools/heldout.cr                          # held-out accuracy on the
 crystal run --release bench/benchmark.cr             # run throughput benchmark
 ```
 
+## Acknowledgements
+
+Single-byte detection is a Crystal port of [chardetng](https://github.com/hsivonen/chardetng) 1.0.0 by Henri Sivonen (copyright Mozilla Foundation), extended with DOS, Mac and `KOI8-R` encodings. chardetng's code is used under the MIT license (see [`LICENSE-chardetng`](LICENSE-chardetng)); its data tables are dedicated to the public domain (CC0).
+
 ## License
 
-MIT
+MIT (see [`LICENSE`](LICENSE)). The chardetng port in `src/fathom/chardetng.cr` is also covered by chardetng's MIT license (see [`LICENSE-chardetng`](LICENSE-chardetng)).
