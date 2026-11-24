@@ -49,12 +49,12 @@ Done (in `CHANGELOG.md` `[Unreleased]`):
 - Short-input accuracy: Mac Roman vs CP850 case rule, a better non-scoring fallback, and per-language bigram models settling Latin near-ties.
 - Bigram probers that no longer affect results removed (`tables.cr` −30%, binaries −20%); `--release` builds down from ~2.5 minutes to ~12 seconds.
 - chardetng's MIT license shipped as `LICENSE-chardetng`.
+- BOM-less `UTF-32LE` / `UTF-32BE` detection (omitting error-prone NUL-less `UTF-16`).
 
 Planned:
 
 - CJK by porting chardetng's multi-byte candidates (`SHIFT_JIS`, `EUC-JP`, `GBK`, `BIG5`, `EUC-KR`) with the same upstream-parity check as the single-byte port. chardetng relies on `encoding_rs` decoders, so Fathom needs its own allocation-free decoders built from the WHATWG Encoding Standard indexes.
 - 7-bit `ISO-2022-JP` detection via escape sequences (prior to the ASCII fast path), also from chardetng.
-- BOM-less `UTF-32LE` / `UTF-32BE` detection (omitting error-prone NUL-less `UTF-16`).
 - Fuzz and property specs over random and truncated byte slices to catch out-of-bounds bugs in multi-byte state machines.
 - CJK samples in `corpus/` and in the accuracy gate; `tools/heldout.cr` already contains CJK test files to measure against.
 

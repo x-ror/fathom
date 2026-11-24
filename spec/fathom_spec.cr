@@ -44,7 +44,6 @@ describe Fathom do
   it "treats NUL-heavy buffers as binary rather than UTF-8" do
     Fathom.detect(Bytes.new(1000, 0)).should be_nil
     Fathom.decode(Bytes.new(1000, 0)).should be_nil
-    Fathom.detect("abc".encode("UTF-32LE")).should be_nil
   end
 
   it "handles 1-byte and 2-byte non-UTF-8 inputs safely" do
@@ -66,6 +65,35 @@ describe Fathom do
   it "rejects invalid trailing bytes after ASCII as UTF-8" do
     Fathom.detect(Bytes[0x61, 0x62, 0x63, 0xC0]).should_not eq "UTF-8"
     Fathom.detect(Bytes[0x61, 0x62, 0x63, 0xFF]).should_not eq "UTF-8"
+  end
+
+  it "detects BOM-less UTF-32LE and UTF-32BE" do
+    ["abcd", "Hello, world!", "Привіт — 日本語 😀"].each do |text|
+      Fathom.detect(text.encode("UTF-32LE")).should eq "UTF-32LE"
+      Fathom.detect(text.encode("UTF-32BE")).should eq "UTF-32BE"
+      Fathom.decode(text.encode("UTF-32LE")).should eq text
+      Fathom.decode(text.encode("UTF-32BE")).should eq text
+    end
+    # A cut trailing unit is ignored for detection and dropped by decode.
+    Fathom.decode("hello".encode("UTF-32BE")[0, 18]).should eq "hell"
+  end
+
+  it "does not read NUL-padded binary or UTF-16 as BOM-less UTF-32" do
+    Fathom.detect("abc".encode("UTF-32LE")).should be_nil                                       # fewer than 4 units is not enough evidence
+    Fathom.detect("abcd".encode("UTF-32LE") + Bytes[0, 0, 0, 0]).should be_nil                  # U+0000 unit
+    Fathom.detect("abcd".encode("UTF-32LE") + Bytes[0, 0xD8, 0, 0]).should_not eq "UTF-32LE"    # surrogate U+D800
+    Fathom.detect("abcd".encode("UTF-32LE") + Bytes[0x41, 0, 0x11, 0]).should_not eq "UTF-32LE" # U+110041
+    Fathom.detect("Hello, world!".encode("UTF-16LE")).should eq "UTF-16LE"
+    Fathom.detect("Hello, world!".encode("UTF-16BE")).should eq "UTF-16BE"
+    Fathom.detect("abcd".encode("UTF-32LE") + Bytes[0, 0, 0x05, 0]).should_not eq "UTF-32LE" # U+50000, unassigned plane 5
+  end
+
+  it "does not read UTF-16 alternating with tab, LF or CR as BOM-less UTF-32" do
+    # Such UTF-16 pairs into units like U+9xxxx/U+Axxxx/U+Dxxxx (unassigned planes).
+    ["1\n2\n3\n4\n", "a\tb\tc\td\t", "x\ry\rz\rw\r", "\n1\n2\n3\n4", "\ta\tb\tc\td"].each do |text|
+      Fathom.detect(text.encode("UTF-16LE")).should eq "UTF-16LE"
+      Fathom.detect(text.encode("UTF-16BE")).should eq "UTF-16BE"
+    end
   end
 
   it "detects BOM-less UTF-16LE and UTF-16BE" do
