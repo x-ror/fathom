@@ -810,7 +810,9 @@ module Fathom
       # stays with the common ones (Fathom extension).
       RARE_HANDICAP = 100_i64
 
-      # Most candidates a detector holds (upstream minus CJK, plus Fathom's extensions).
+      # Capacity of `@normal`: the single-byte candidates (upstream's, plus Fathom's
+      # extensions). The UTF-8, ISO-2022-JP, visual Hebrew and CJK candidates are
+      # separate fields.
       CAPACITY = 25
 
       # Most entries `#each_score` can yield: every single-byte candidate, visual
@@ -926,7 +928,8 @@ module Fathom
       end
 
       # Returns the guessed encoding and its score (`0` when no candidate scored
-      # above zero and the guess is the windows-1252 default, or for UTF-8).
+      # above zero and the guess is the windows-1252 default, or for UTF-8 and
+      # ISO-2022-JP).
       def result : {String, Int64}
         return {@iso2022.encoding, 0_i64} if @non_ascii_seen == 0 && @esc_seen && @iso2022.score
         return {"UTF-8", 0_i64} if @utf8.score

@@ -8,6 +8,34 @@ private CORPUS_DIR = File.expand_path("fixtures/corpus", __DIR__)
 # Columns: path relative to fixtures/corpus, prefix length (-1 = whole file), guess.
 private EXPECTED = File.read_lines(File.expand_path("fixtures/chardetng_expected.tsv", __DIR__)).map(&.split('\t'))
 
+private def hex_bytes(hex : String) : Bytes
+  Bytes.new(hex.size // 2) { |i| hex[2 * i, 2].to_u8(16) }
+end
+
+# chardetng's own CJK test strings (src/lib.rs), encoded as upstream encodes them.
+private UPSTREAM_CJK_CASES = [
+  {"日本語", "ISO-2022-JP", "1B2442467C4B5C386C1B2842"},
+  {"这是一个字符编码测试。", "GBK", "D5E2CAC7D2BBB8F6D7D6B7FBB1E0C2EBB2E2CAD4A1A3"},
+  {"這是一個字符編碼測試。", "BIG5", "B36FAC4FA440ADD3A672B2C5BD73BD58B4FAB8D5A143"},
+  {"이것은 문자 인코딩 테스트입니다.", "EUC-KR", "C0CCB0CDC0BA20B9AEC0DA20C0CEC4DAB5F920C5D7BDBAC6AEC0D4B4CFB4D92E"},
+  {"これは文字実験です。 (Shift_JIS)", "SHIFT_JIS", "82B182EA82CD95B68E9A8EC08CB182C582B78142"},
+  {"これは文字実験です。 (EUC-JP)", "EUC-JP", "A4B3A4ECA4CFCAB8BBFABCC2B8B3A4C7A4B9A1A3"},
+  {"ﾊｰﾄﾞｳｪｱ x5", "SHIFT_JIS", "CAB0C4DEB3AAB1CAB0C4DEB3AAB1CAB0C4DEB3AAB1CAB0C4DEB3AAB1CAB0C4DEB3AAB1"},
+]
+
+# Edge cases; expected guesses come from upstream chardetng 1.0.0.
+private CJK_EDGE_CASES = [
+  {"empty", "UTF-8", ""},
+  {"ASCII", "UTF-8", "706C61696E2041534349492074657874"},
+  {"ANSI escape (ESC not starting ISO-2022-JP)", "UTF-8", "1B5B33316D7265641B5B306D2074657874"},
+  {"ISO-2022-JP after an ASCII prefix", "ISO-2022-JP", "616263201B2442467C4B5C386C1B2842"},
+  {"ISO-2022-JP followed by a byte >= 0x80", "WINDOWS-1252", "1B2442467C4B5C386C1B284220636166E9"},
+  {"Shift_JIS cut inside the last character", "WINDOWS-1252", "82B182EA82CD95B68E9A8EC08CB182C582B781"},
+  {"EUC-JP cut inside the last character", "WINDOWS-1252", "A4B3A4ECA4CFCAB8BBFABCC2B8B3A4C7A4B9A1"},
+  {"GBK with a four-byte gb18030 character", "GBK", "D5E2CAC7D2BBB8F6D7D6B7FBB1E0C2EBB2E2CAD4A1A39439FC39B2E2CAD4"},
+  {"Big5 with a plane-2 character", "BIG5", "B36FAC4FA440ADD3A672B2C5BD73BD58B4FAB8D5A1438740B4FAB8D5"},
+]
+
 private def sample(path : String, limit : Int32) : Bytes
   bytes = File.open(File.join(CORPUS_DIR, path), "rb", &.getb_to_end)
   limit < 0 ? bytes : bytes[0, Math.min(limit, bytes.size)]
@@ -38,17 +66,30 @@ describe Fathom::Chardetng do
   end
 
   it "detects CJK and ISO-2022-JP (upstream test cases)" do
-    {
-      {"日本語", "ISO-2022-JP", "1B2442467C4B5C386C1B2842"},
-      {"这是一个字符编码测试。", "GBK", "D5E2CAC7D2BBB8F6D7D6B7FBB1E0C2EBB2E2CAD4A1A3"},
-      {"這是一個字符編碼測試。", "BIG5", "B36FAC4FA440ADD3A672B2C5BD73BD58B4FAB8D5A143"},
-      {"이것은 문자 인코딩 테스트입니다.", "EUC-KR", "C0CCB0CDC0BA20B9AEC0DA20C0CEC4DAB5F920C5D7BDBAC6AEC0D4B4CFB4D92E"},
-      {"これは文字実験です。", "SHIFT_JIS", "82B182EA82CD95B68E9A8EC08CB182C582B78142"},
-      {"これは文字実験です。", "EUC-JP", "A4B3A4ECA4CFCAB8BBFABCC2B8B3A4C7A4B9A1A3"},
-      {"ﾊｰﾄﾞｳｪｱﾊｰﾄﾞｳｪｱﾊｰﾄﾞｳｪｱﾊｰﾄﾞｳｪｱﾊｰﾄﾞｳｪｱ", "SHIFT_JIS", "CAB0C4DEB3AAB1CAB0C4DEB3AAB1CAB0C4DEB3AAB1CAB0C4DEB3AAB1CAB0C4DEB3AAB1"},
-    }.each do |text, encoding, hex|
-      bytes = Bytes.new(hex.size // 2) { |i| hex[2 * i, 2].to_u8(16) }
-      {text, Fathom::Chardetng.guess(bytes)}.should eq({text, encoding})
+    UPSTREAM_CJK_CASES.each do |(name, encoding, hex)|
+      {name, Fathom::Chardetng.guess(hex_bytes(hex))}.should eq({name, encoding})
+    end
+  end
+
+  it "matches upstream on CJK and ISO-2022-JP edge cases" do
+    CJK_EDGE_CASES.each do |(name, encoding, hex)|
+      {name, Fathom::Chardetng.guess(hex_bytes(hex))}.should eq({name, encoding})
+    end
+  end
+
+  it "gives the same CJK and ISO-2022-JP guesses regardless of chunking" do
+    (UPSTREAM_CJK_CASES + CJK_EDGE_CASES).each do |(name, encoding, hex)|
+      bytes = hex_bytes(hex)
+      [1, 2, 7].each do |chunk|
+        detector = Fathom::Chardetng::Detector.new
+        offset = 0
+        while offset + chunk < bytes.size
+          detector.feed(bytes[offset, chunk], last: false)
+          offset += chunk
+        end
+        detector.feed(bytes[offset..], last: true)
+        {name, chunk, detector.guess}.should eq({name, chunk, encoding})
+      end
     end
   end
 
