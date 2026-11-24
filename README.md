@@ -137,6 +137,7 @@ crystal run tools/gen_tables.cr > src/fathom/tables.cr # regenerate precomputed 
 crystal run tools/gen_chardetng_data.cr -- path/to/chardetng-1.0.0/src/data.rs  # regenerate chardetng tables
 crystal run tools/heldout.cr                          # held-out accuracy on the uchardet/chardetng test suites
 crystal run tools/gen_whatwg_indexes.cr               # regenerate the WHATWG multi-byte indexes
+(cd tools/encoding_rs_oracle && cargo run --release -- fixture > ../../spec/fixtures/decoder_traces.tsv)  # regenerate decoder reference traces (needs Rust)
 crystal run --release bench/benchmark.cr             # run throughput benchmark
 ```
 
@@ -146,6 +147,8 @@ Single-byte detection is a Crystal port of [chardetng](https://github.com/hsivon
 
 The multi-byte code point indexes in `src/fathom/whatwg/` are generated from the [WHATWG Encoding Standard](https://encoding.spec.whatwg.org/) (copyright WHATWG) and are licensed under the BSD 3-Clause License (see [`LICENSE-whatwg`](LICENSE-whatwg)).
 
+The multi-byte decoders in `src/fathom/whatwg/decoders.cr` reproduce the behavior of [encoding_rs](https://github.com/hsivonen/encoding_rs) 0.8.44 (copyright Mozilla Foundation), used under the MIT license (see [`LICENSE-encoding_rs`](LICENSE-encoding_rs)).
+
 ## License
 
-MIT (see [`LICENSE`](LICENSE)). The chardetng port in `src/fathom/chardetng.cr` is also covered by chardetng's MIT license (see [`LICENSE-chardetng`](LICENSE-chardetng)). The WHATWG indexes in `src/fathom/whatwg/` are under the BSD 3-Clause License (see [`LICENSE-whatwg`](LICENSE-whatwg)).
+MIT (see [`LICENSE`](LICENSE)). The chardetng port in `src/fathom/chardetng.cr` is also covered by chardetng's MIT license (see [`LICENSE-chardetng`](LICENSE-chardetng)). The WHATWG indexes in `src/fathom/whatwg/` are under the BSD 3-Clause License (see [`LICENSE-whatwg`](LICENSE-whatwg)). The decoders in `src/fathom/whatwg/decoders.cr` are also covered by encoding_rs's MIT license (see [`LICENSE-encoding_rs`](LICENSE-encoding_rs)).

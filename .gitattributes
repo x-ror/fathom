@@ -4,3 +4,4 @@ corpus/** -text
 spec/fixtures/** -text
 src/fathom/chardetng/data.cr linguist-generated=true
 src/fathom/whatwg/indexes.cr linguist-generated=true
+spec/fixtures/decoder_traces.tsv linguist-generated=true

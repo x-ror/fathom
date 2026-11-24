@@ -27,3 +27,6 @@
 
 # WHATWG index download for tools/gen_whatwg_indexes.cr
 /tools/whatwg_data/
+
+# Rust build output of tools/encoding_rs_oracle
+/tools/encoding_rs_oracle/target/
