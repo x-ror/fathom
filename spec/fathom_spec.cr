@@ -85,6 +85,15 @@ describe Fathom do
     Fathom.detect("abcd".encode("UTF-32LE") + Bytes[0x41, 0, 0x11, 0]).should_not eq "UTF-32LE" # U+110041
     Fathom.detect("Hello, world!".encode("UTF-16LE")).should eq "UTF-16LE"
     Fathom.detect("Hello, world!".encode("UTF-16BE")).should eq "UTF-16BE"
+    Fathom.detect("abcd".encode("UTF-32LE") + Bytes[0, 0, 0x05, 0]).should_not eq "UTF-32LE" # U+50000, unassigned plane 5
+  end
+
+  it "does not read UTF-16 alternating with tab, LF or CR as BOM-less UTF-32" do
+    # Such UTF-16 pairs into units like U+9xxxx/U+Axxxx/U+Dxxxx (unassigned planes).
+    ["1\n2\n3\n4\n", "a\tb\tc\td\t", "x\ry\rz\rw\r", "\n1\n2\n3\n4", "\ta\tb\tc\td"].each do |text|
+      Fathom.detect(text.encode("UTF-16LE")).should eq "UTF-16LE"
+      Fathom.detect(text.encode("UTF-16BE")).should eq "UTF-16BE"
+    end
   end
 
   it "detects BOM-less UTF-16LE and UTF-16BE" do

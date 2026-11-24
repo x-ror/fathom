@@ -93,8 +93,8 @@ module Fathom
     # to a UTF-8 `String`. Returns `nil` when *bytes* looks like binary or an unknown encoding.
     #
     # An incomplete character at the very end of *bytes* (a cut multi-byte UTF-8
-    # sequence, an odd trailing UTF-16 byte, a lone high surrogate) is dropped, matching
-    # what detection accepts.
+    # sequence, an odd trailing UTF-16 byte, a lone high surrogate, or a partial
+    # UTF-32 unit) is dropped, matching what detection accepts.
     #
     # The *invalid* option (`nil` or `:skip`) is passed through to `String.new` unchanged,
     # so invalid sequences elsewhere (e.g. in tolerated corrupt UTF-8) raise `ArgumentError`
@@ -166,12 +166,15 @@ module Fathom
       end
 
       if stats.null_bytes > 0
-        if utf32 = UTF.detect_utf32(sample, stats)
-          yield utf32
-          return
-        end
+        # UTF-16 first: UTF-16 text that alternates characters with tab, LF or CR
+        # can pair into valid UTF-32 units, while real UTF-32 never passes the UTF-16
+        # check (its high half is U+0000, or a control character for planes 1-3/14-16).
         if utf16 = UTF.detect_utf16(sample, stats)
           yield utf16
+          return
+        end
+        if utf32 = UTF.detect_utf32(sample, stats)
+          yield utf32
           return
         end
       end

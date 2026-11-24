@@ -1,5 +1,5 @@
 module Fathom
-  # Validation and heuristic detection for UTF-8 and BOM-less UTF-16 encodings.
+  # Validation and heuristic detection for UTF-8 and BOM-less UTF-16 and UTF-32 encodings.
   module UTF
     # Returns `true` if *bytes* is valid UTF-8, allowing an incomplete multi-byte
     # sequence cut off at the end of a truncated sample. Pass *truncated* when
@@ -81,9 +81,13 @@ module Fathom
     UTF32_MIN_UNITS = 4
 
     # Detects BOM-less UTF-32LE or UTF-32BE: every 4-byte unit (an incomplete
-    # trailing unit is ignored) must be a non-NUL, non-surrogate code point up to
-    # U+10FFFF other than a binary control character. Text in one byte order can't
-    # pass in the other, since its units would exceed U+10FFFF.
+    # trailing unit is ignored) must be a non-NUL, non-surrogate code point in an
+    # assigned plane (0-3 or 14-16) other than a binary control character. Text in
+    # one byte order can't pass in the other, since its units would exceed U+10FFFF.
+    #
+    # NOTE: Run `detect_utf16` first: UTF-16 text alternating characters with tab,
+    # LF or CR pairs into units in planes 9, 10 or 13, which the plane check rejects
+    # but which were valid code points before it.
     #
     # NOTE: At least `UTF32_MIN_UNITS` units are required: on 2-3 units, random
     # NUL-heavy binary passed ~0.25% of the time, on 4+ about 0.01%.
@@ -109,6 +113,7 @@ module Fathom
                (b0.to_u32 << 24) | (b1.to_u32 << 16) | (b2.to_u32 << 8) | b3.to_u32
              end
         return false if cp == 0 || cp > 0x10FFFF || (0xD800 <= cp <= 0xDFFF)
+        return false if 0x40000 <= cp <= 0xDFFFF # unassigned planes 4-13
         return false if cp <= 0x08 || (0x0E <= cp <= 0x1F) || cp == 0x7F
         i += 1
       end
