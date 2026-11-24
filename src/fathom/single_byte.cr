@@ -38,22 +38,19 @@ module Fathom
     # so decoding real non-ASCII letters is preferred over treating them as symbols.
     SYMBOL_ONLY_FACTOR = 0.85
 
-    # Loads a `4096`-entry `Int8` bigram matrix from a raw byte slice in `.rodata`.
-    def self.load_bigrams(data : Bytes) : StaticArray(Int8, 4096)
+    # Views a `4096`-entry `Int8` bigram matrix in a raw byte slice in `.rodata`, without copying.
+    #
+    # NOTE: The tables are slices, not `StaticArray`s, on purpose: copying dozens of
+    # 4 KiB `StaticArray`s by value made LLVM's optimizer take minutes in `--release`.
+    def self.load_bigrams(data : Bytes) : Slice(Int8)
       raise ArgumentError.new("expected 4096 bigram bytes, got #{data.size}") unless data.size == 4096
-
-      arr = uninitialized StaticArray(Int8, 4096)
-      arr.to_unsafe.as(Pointer(UInt8)).copy_from(data.to_unsafe, 4096)
-      arr
+      Slice(Int8).new(data.to_unsafe.as(Pointer(Int8)), data.size, read_only: true)
     end
 
-    # Loads a `256`-entry `UInt8` byte classification table from a raw byte slice in `.rodata`.
-    def self.load_byte_map(data : Bytes) : StaticArray(UInt8, 256)
+    # Views a `256`-entry `UInt8` byte classification table in a raw byte slice in `.rodata`, without copying.
+    def self.load_byte_map(data : Bytes) : Bytes
       raise ArgumentError.new("expected 256 byte-map bytes, got #{data.size}") unless data.size == 256
-
-      arr = uninitialized StaticArray(UInt8, 256)
-      arr.to_unsafe.copy_from(data.to_unsafe, 256)
-      arr
+      data
     end
 
     # Quantized `64x64` bigram log-likelihood model for a single language or language group.
@@ -62,12 +59,12 @@ module Fathom
       getter name : String
 
       # Flattened `64x64` matrix indexed as `(prev_order << 6) | curr_order`.
-      getter bigrams : StaticArray(Int8, 4096)
+      getter bigrams : Slice(Int8)
 
       # Optional ISO 639-1 language code for single-language models, or `nil`.
       getter language : String?
 
-      def initialize(@name : String, @bigrams : StaticArray(Int8, 4096), @language : String? = nil)
+      def initialize(@name : String, @bigrams : Slice(Int8), @language : String? = nil)
       end
     end
 
@@ -88,13 +85,13 @@ module Fathom
       getter? requires_high_letters : Bool
 
       # Bit-packed `(CharKind << 6) | order` lookup table for bytes `0x00..0xFF`.
-      getter byte_map : StaticArray(UInt8, 256)
+      getter byte_map : Bytes
 
       def initialize(
         @encoding : String,
         @model : LanguageModel,
         @requires_high_letters : Bool,
-        @byte_map : StaticArray(UInt8, 256),
+        @byte_map : Bytes,
       )
       end
 
