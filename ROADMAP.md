@@ -50,6 +50,7 @@ Done (in `CHANGELOG.md` `[Unreleased]`):
 - Bigram probers that no longer affect results removed (`tables.cr` −30%, binaries −20%); `--release` builds down from ~2.5 minutes to ~12 seconds.
 - chardetng's MIT license shipped as `LICENSE-chardetng`.
 - BOM-less `UTF-32LE` / `UTF-32BE` detection (omitting error-prone NUL-less `UTF-16`).
+- WHATWG multi-byte indexes and allocation-free `Shift_JIS`, `EUC-JP`, `EUC-KR`, `Big5`, `gb18030`/`GBK` and `ISO-2022-JP` decoders, matching encoding_rs step by step (not yet used for detection).
 
 Planned:
 
