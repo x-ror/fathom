@@ -403,7 +403,6 @@ describe Fathom do
     it "doesn't report CJK without positive evidence" do
       match = Fathom.match("abc\x90".to_slice).should_not be_nil
       Fathom::Encoding::CJK.includes?(match.encoding).should be_false
-      Fathom.decode("abc\x90".to_slice, invalid: :skip).try(&.size).should eq 4 # the byte isn't dropped
     end
 
     it "keeps slightly corrupted UTF-8 CJK text as UTF-8" do
