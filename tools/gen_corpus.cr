@@ -17,26 +17,37 @@ MAX_LEN = 4096
 
 # lang => article titles. The first article of each language also goes into the CI gate fixture.
 ARTICLES = {
-  "ru" => ["Волга", "Фотосинтез", "Пушкин, Александр Сергеевич"],
-  "uk" => ["Шевченко Тарас Григорович", "Фотосинтез", "Карпати"],
-  "be" => ["Мінск", "Янка Купала", "Нёман"],
-  "de" => ["Rhein", "Photosynthese", "Johann Wolfgang von Goethe"],
-  "fr" => ["Loire (fleuve)", "Photosynthèse", "Victor Hugo"],
-  "es" => ["Ebro", "Fotosíntesis", "Miguel de Cervantes"],
-  "it" => ["Po", "Fotosintesi clorofilliana", "Dante Alighieri"],
-  "pt" => ["Rio Tejo", "Fotossíntese", "Luís de Camões"],
-  "en" => ["Zürich", "Crème brûlée", "Pelé"],
-  "pl" => ["Wisła", "Fotosynteza", "Adam Mickiewicz"],
-  "cs" => ["Vltava", "Fotosyntéza", "Karel Čapek"],
-  "hu" => ["Duna", "Fotoszintézis", "Petőfi Sándor"],
-  "lt" => ["Nemunas", "Fotosintezė", "Maironis"],
-  "lv" => ["Daugava", "Fotosintēze", "Rainis"],
-  "el" => ["Άρης (πλανήτης)", "Φωτοσύνθεση", "Άρτα"],
-  "tr" => ["Fırat", "Fotosentez", "Orhan Pamuk"],
-  "he" => ["ירדן", "פוטוסינתזה", "דוד בן-גוריון"],
-  "ar" => ["النيل", "تمثيل ضوئي", "نجيب محفوظ"],
-  "th" => ["แม่น้ำเจ้าพระยา", "การสังเคราะห์ด้วยแสง", "สุนทรภู่"],
+  "ru"      => ["Волга", "Фотосинтез", "Пушкин, Александр Сергеевич"],
+  "uk"      => ["Шевченко Тарас Григорович", "Фотосинтез", "Карпати"],
+  "be"      => ["Мінск", "Янка Купала", "Нёман"],
+  "de"      => ["Rhein", "Photosynthese", "Johann Wolfgang von Goethe"],
+  "fr"      => ["Loire (fleuve)", "Photosynthèse", "Victor Hugo"],
+  "es"      => ["Ebro", "Fotosíntesis", "Miguel de Cervantes"],
+  "it"      => ["Po", "Fotosintesi clorofilliana", "Dante Alighieri"],
+  "pt"      => ["Rio Tejo", "Fotossíntese", "Luís de Camões"],
+  "en"      => ["Zürich", "Crème brûlée", "Pelé"],
+  "pl"      => ["Wisła", "Fotosynteza", "Adam Mickiewicz"],
+  "cs"      => ["Vltava", "Fotosyntéza", "Karel Čapek"],
+  "hu"      => ["Duna", "Fotoszintézis", "Petőfi Sándor"],
+  "lt"      => ["Nemunas", "Fotosintezė", "Maironis"],
+  "lv"      => ["Daugava", "Fotosintēze", "Rainis"],
+  "el"      => ["Άρης (πλανήτης)", "Φωτοσύνθεση", "Άρτα"],
+  "tr"      => ["Fırat", "Fotosentez", "Orhan Pamuk"],
+  "he"      => ["ירדן", "פוטוסינתזה", "דוד בן-גוריון"],
+  "ar"      => ["النيل", "تمثيل ضوئي", "نجيب محفوظ"],
+  "th"      => ["แม่น้ำเจ้าพระยา", "การสังเคราะห์ด้วยแสง", "สุนทรภู่"],
+  "ja"      => ["信濃川", "光合成", "夏目漱石"],
+  "ko"      => ["한강", "광합성", "이순신"],
+  "zh-hans" => ["长江", "光合作用", "鲁迅"],
+  "zh-hant" => ["淡水河", "光合作用", "梁實秋"],
 }
+
+# Chinese script variants are served by zh.wikipedia.org with a `variant` conversion.
+VARIANTS = {"zh-hans" => "zh-cn", "zh-hant" => "zh-tw"}
+
+def host(lang : String) : String
+  "#{lang.split('-').first}.wikipedia.org"
+end
 
 # encoding => languages encoded into it.
 TARGETS = {
@@ -61,6 +72,12 @@ TARGETS = {
   "WINDOWS-1256"   => %w[ar],
   "ISO-8859-6"     => %w[ar],
   "WINDOWS-874"    => %w[th],
+  "SHIFT_JIS"      => %w[ja],
+  "EUC-JP"         => %w[ja],
+  "ISO-2022-JP"    => %w[ja],
+  "EUC-KR"         => %w[ko],
+  "GBK"            => %w[zh-hans],
+  "BIG5"           => %w[zh-hant],
 }
 
 # ASCII stand-ins for punctuation that legacy Cyrillic code pages cannot encode.
@@ -68,13 +85,15 @@ FALLBACK = {'«' => "\"", '»' => "\"", '„' => "\"", '“' => "\"", '”' => "
             '‘' => "'", '’' => "'", '—' => "-", '–' => "-", '…' => "...", ' ' => " "}
 
 def fetch(lang : String, title : String) : String
-  query = URI::Params.encode({"action" => "query", "prop" => "extracts", "explaintext" => "1",
-                              "redirects" => "1", "format" => "json", "formatversion" => "2", "titles" => title})
+  params = {"action" => "query", "prop" => "extracts", "explaintext" => "1",
+            "redirects" => "1", "format" => "json", "formatversion" => "2", "titles" => title}
+  VARIANTS[lang]?.try { |variant| params["variant"] = variant }
+  query = URI::Params.encode(params)
   res = nil
   wait = 2
   6.times do
     sleep wait.seconds # Wikipedia rate-limits bursts with HTTP 429
-    res = HTTP::Client.get("https://#{lang}.wikipedia.org/w/api.php?#{query}",
+    res = HTTP::Client.get("https://#{host(lang)}/w/api.php?#{query}",
       headers: HTTP::Headers{"User-Agent" => "fathom-corpus/0.1"})
     break unless res.status_code == 429
     wait = res.headers["Retry-After"]?.try(&.to_i?) || wait * 2
@@ -96,15 +115,23 @@ def fetch(lang : String, title : String) : String
   text
 end
 
+# Encoders to use where the decoding iconv name can't encode (macOS iconv decodes
+# BIG5-HKSCS but refuses to encode plain text with it; Big5 is its subset).
+ENCODE_AS = {"BIG5" => "BIG5"}
+
 def encode(text : String, encoding : String) : Bytes
-  encoding = Fathom::Encoding.iconv_name(encoding)
-  io = IO::Memory.new
-  text.each_char do |c|
-    io.write c.to_s.encode(encoding)
-  rescue ArgumentError
-    FALLBACK[c]?.try { |s| io.write s.encode(encoding) } # otherwise drop (e.g. combining stress marks)
+  encoding = ENCODE_AS[encoding]? || Fathom::Encoding.iconv_name(encoding)
+  # Clean per character, then encode in one call: stateful encodings
+  # (ISO-2022-JP) must not switch character sets around every character.
+  cleaned = String.build do |io|
+    text.each_char do |c|
+      c.to_s.encode(encoding)
+      io << c
+    rescue ArgumentError
+      FALLBACK[c]?.try { |s| io << s } # otherwise drop (e.g. combining stress marks)
+    end
   end
-  io.to_slice
+  cleaned.encode(encoding)
 end
 
 def write(dir : String, name : String, bytes : Bytes)
@@ -121,7 +148,7 @@ sources = String.build do |md|
       if ARGV.includes?("--fetch") && !File.exists?(path)
         write(File.dirname(path), File.basename(path), fetch(lang, title).to_slice)
       end
-      md << "- `#{lang}_#{i + 1}.txt`: [#{title}](https://#{lang}.wikipedia.org/wiki/#{URI.encode_path(title.tr(" ", "_"))})\n"
+      md << "- `#{lang}_#{i + 1}.txt`: [#{title}](https://#{host(lang)}/wiki/#{URI.encode_path(title.tr(" ", "_"))}#{VARIANTS[lang]?.try { |v| "?variant=#{v}" }})\n"
     end
   end
   md << "\n## Synthetic samples\n\n"

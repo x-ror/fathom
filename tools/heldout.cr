@@ -9,7 +9,8 @@
 # only read as data.
 #
 # Each sample is scored at the 64B and 256B prefixes and in full; a pure-ASCII
-# prefix of a non-UTF sample is skipped since UTF-8 is the right label for it.
+# prefix (without escape sequences) of a non-UTF sample is skipped since UTF-8 is
+# the right label for it.
 # An answer is correct when it decodes the sample to the same text as the true
 # encoding (both sides with `invalid: :skip`, so a cut trailing character
 # doesn't count), e.g. WINDOWS-1257 is right for ISO-8859-13 text that has none
@@ -120,7 +121,7 @@ samples.each do |sample|
   SIZES.each do |limit|
     next if limit && limit >= sample.bytes.size
     slice = limit ? sample.bytes[0, limit] : sample.bytes
-    next if !sample.encoding.starts_with?("UTF") && slice.all? { |b| b < 0x80 }
+    next if !sample.encoding.starts_with?("UTF") && slice.all? { |b| b < 0x80 } && !slice.includes?(0x1B_u8)
 
     match = Fathom.match(slice)
     expected = decode(slice, sample.iconv)

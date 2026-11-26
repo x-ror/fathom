@@ -79,9 +79,8 @@ detector.match(bytes)
 - Central & Baltic Europe: `WINDOWS-1250`, `ISO-8859-2`, `IBM852`, `WINDOWS-1257`, `ISO-8859-13`
 - Greek & Turkish: `WINDOWS-1253`, `ISO-8859-7`, `WINDOWS-1254`
 - Hebrew, Arabic & Thai: `WINDOWS-1255`, `WINDOWS-1256`, `ISO-8859-6`, `WINDOWS-874`
-- Optional `Match#language` populates the ISO 639-1 language code for single-language probers (`ru`, `uk`, `be`, `pl`, `cs`, `hu`, `lt`, `lv`, `el`, `tr`, `he`, `ar`, `th`, or `nil` for shared encodings such as `UTF-8`, `UTF-16*`, `UTF-32*`, `WINDOWS-1252`, `IBM437`, `IBM850`, `MACINTOSH`)
-
-Not yet built in: CJK (can be plugged in via `Fathom::Prober`).
+- CJK: `SHIFT_JIS`, `EUC-JP`, `ISO-2022-JP` (7-bit, recognized by its escape sequences), `EUC-KR`, `GBK` (gb18030), `BIG5`; a character cut at the end of the input is accepted, as for UTF-8
+- Optional `Match#language` populates the ISO 639-1 language code for single-language probers (`ru`, `uk`, `be`, `pl`, `cs`, `hu`, `lt`, `lv`, `el`, `tr`, `he`, `ar`, `th`, `ja`, `ko`, `zh`, or `nil` for shared encodings such as `UTF-8`, `UTF-16*`, `UTF-32*`, `WINDOWS-1252`, `IBM437`, `IBM850`, `MACINTOSH`)
 
 ## Labels, Aliases & Platform `iconv` Support
 
@@ -92,6 +91,7 @@ Not yet built in: CJK (can be plugged in via `Fathom::Prober`).
   - `IBM437` → `CP437`, `IBM850` → `CP850`, `IBM852` → `CP852`, `IBM866` → `CP866`
   - `MACINTOSH` → `MACROMAN` on Windows, `MACINTOSH` elsewhere
   - `X-MAC-CYRILLIC` → `MACCYRILLIC`
+  - WHATWG's CJK encodings are the Windows/HKSCS supersets: `SHIFT_JIS` → `CP932`, `EUC-KR` → `CP949`, `BIG5` → `BIG5-HKSCS`, `GBK` → `GB18030`
   - All other canonical labels are returned as-is
 - Detection is platform-independent: `Fathom.detect` and `Fathom.match` always return canonical labels regardless of host OS. On Alpine Linux (`musl`), `musl`'s built-in `iconv` does not support `IBM852`, `MACINTOSH`, `X-MAC-CYRILLIC`, or `WINDOWS-874`; detection still succeeds, while `Fathom.decode` raises `ArgumentError` just as `String.new` does.
 
@@ -109,20 +109,20 @@ crystal run tools/fathom.cr -- --corpus                    # evaluate built-in c
 crystal run tools/fathom.cr -- --corpus --compare=icu      # compare against ICU ucsdet
 ```
 
-Baseline on `corpus/`: `208` files (`57` Wikipedia articles in 19 languages plus `1` synthetic `IBM437` sample, sources and license in `corpus/SOURCES.md`) evaluated at `64B`, `256B`, `1024B`, `4096B`, and full size (`840` slices total: `328` UTF, `512` single-byte; pure-ASCII slices of single-byte files are skipped since `UTF-8` is the right label for them).
+Baseline on `corpus/`: `238` files (`69` Wikipedia articles in 22 languages, Chinese in both simplified and traditional script, plus `1` synthetic `IBM437` sample; sources and license in `corpus/SOURCES.md`) evaluated at `64B`, `256B`, `1024B`, `4096B`, and full size (`959` slices total: `376` UTF, `583` legacy single- or multi-byte; pure-ASCII slices without escape sequences of legacy-encoded files are skipped since `UTF-8` is the right label for them).
 
 Notice that ICU `ucsdet` does not output 10 of Fathom's built-in corpus encodings (`IBM437`, `IBM850`, `IBM852`, `IBM866`, `ISO-8859-13`, `KOI8-U`, `MACINTOSH`, `WINDOWS-1257`, `WINDOWS-874`, `X-MAC-CYRILLIC` — 240 slices), so both the full-corpus total and the fair head-to-head subset over encodings ICU actually outputs are reported below:
 
 | Input Size | Fathom | ICU (`ucsdet`) |
 | --- | ---: | ---: |
-| `64B` | 169 / 201 (84.08%) | 113 / 201 (56.22%) |
-| `256B` | 186 / 208 (89.42%) | 139 / 208 (66.83%) |
-| `1024B` | 201 / 207 (97.1%) | 144 / 207 (69.57%) |
+| `64B` | 202 / 231 (87.45%) | 142 / 231 (61.47%) |
+| `256B` | 221 / 238 (92.86%) | 169 / 238 (71.01%) |
+| `1024B` | 231 / 236 (97.88%) | 173 / 236 (73.31%) |
 | `4096B` | 16 / 16 (100.0%) | 16 / 16 (100.0%) |
-| `full` | 204 / 208 (98.08%) | 144 / 208 (69.23%) |
-| **Overall (all 27 encodings)** | **776 / 840 (92.38%)** | **556 / 840 (66.19%)** |
-| **Single-byte only** | **448 / 512 (87.5%)** | **234 / 512 (45.7%)** |
-| **Shared encodings only (17 encodings / 600 slices)** | **580 / 600 (96.67%)** *(SB: 252/272 = 92.65%)* | **556 / 600 (92.67%)** *(SB: 234/272 = 86.03%)* |
+| `full` | 234 / 238 (98.32%) | 174 / 238 (73.11%) |
+| **Overall (all 33 encodings)** | **904 / 959 (94.26%)** | **674 / 959 (70.28%)** |
+| **Legacy encodings only** | **528 / 583 (90.57%)** | **304 / 583 (52.14%)** |
+| **Shared encodings only (23 encodings / 719 slices)** | **701 / 719 (97.5%)** *(legacy: 325/343 = 94.75%)* | **674 / 719 (93.74%)** *(legacy: 304/343 = 88.63%)* |
 
 ## Development
 

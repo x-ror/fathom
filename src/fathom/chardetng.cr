@@ -887,6 +887,13 @@ module Fathom
           (n + 19).clear(6)
           @normal_len = 19
         end
+        if extended
+          @gbk.lenient_eof = true
+          @euc_jp.lenient_eof = true
+          @euc_kr.lenient_eof = true
+          @shift_jis.lenient_eof = true
+          @big5.lenient_eof = true
+        end
       end
 
       # Feeds the next chunk of the stream. Returns `true` once any non-ASCII

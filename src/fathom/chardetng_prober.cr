@@ -187,6 +187,9 @@ module Fathom
         when "WINDOWS-1255"               then return "he"
         when "WINDOWS-1256", "ISO-8859-6" then return "ar"
         when "WINDOWS-874"                then return "th"
+        when "SHIFT_JIS", "EUC-JP"        then return "ja"
+        when "EUC-KR"                     then return "ko"
+        when "GBK", "BIG5"                then return "zh"
         when "WINDOWS-1252", "IBM437", "IBM850", "MACINTOSH"
           return nil
         end

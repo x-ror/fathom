@@ -59,6 +59,18 @@ Text from Wikipedia, licensed [CC BY-SA 4.0](https://creativecommons.org/license
 - `th_1.txt`: [แม่น้ำเจ้าพระยา](https://th.wikipedia.org/wiki/%E0%B9%81%E0%B8%A1%E0%B9%88%E0%B8%99%E0%B9%89%E0%B8%B3%E0%B9%80%E0%B8%88%E0%B9%89%E0%B8%B2%E0%B8%9E%E0%B8%A3%E0%B8%B0%E0%B8%A2%E0%B8%B2)
 - `th_2.txt`: [การสังเคราะห์ด้วยแสง](https://th.wikipedia.org/wiki/%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%AA%E0%B8%B1%E0%B8%87%E0%B9%80%E0%B8%84%E0%B8%A3%E0%B8%B2%E0%B8%B0%E0%B8%AB%E0%B9%8C%E0%B8%94%E0%B9%89%E0%B8%A7%E0%B8%A2%E0%B9%81%E0%B8%AA%E0%B8%87)
 - `th_3.txt`: [สุนทรภู่](https://th.wikipedia.org/wiki/%E0%B8%AA%E0%B8%B8%E0%B8%99%E0%B8%97%E0%B8%A3%E0%B8%A0%E0%B8%B9%E0%B9%88)
+- `ja_1.txt`: [信濃川](https://ja.wikipedia.org/wiki/%E4%BF%A1%E6%BF%83%E5%B7%9D)
+- `ja_2.txt`: [光合成](https://ja.wikipedia.org/wiki/%E5%85%89%E5%90%88%E6%88%90)
+- `ja_3.txt`: [夏目漱石](https://ja.wikipedia.org/wiki/%E5%A4%8F%E7%9B%AE%E6%BC%B1%E7%9F%B3)
+- `ko_1.txt`: [한강](https://ko.wikipedia.org/wiki/%ED%95%9C%EA%B0%95)
+- `ko_2.txt`: [광합성](https://ko.wikipedia.org/wiki/%EA%B4%91%ED%95%A9%EC%84%B1)
+- `ko_3.txt`: [이순신](https://ko.wikipedia.org/wiki/%EC%9D%B4%EC%88%9C%EC%8B%A0)
+- `zh-hans_1.txt`: [长江](https://zh.wikipedia.org/wiki/%E9%95%BF%E6%B1%9F?variant=zh-cn)
+- `zh-hans_2.txt`: [光合作用](https://zh.wikipedia.org/wiki/%E5%85%89%E5%90%88%E4%BD%9C%E7%94%A8?variant=zh-cn)
+- `zh-hans_3.txt`: [鲁迅](https://zh.wikipedia.org/wiki/%E9%B2%81%E8%BF%85?variant=zh-cn)
+- `zh-hant_1.txt`: [淡水河](https://zh.wikipedia.org/wiki/%E6%B7%A1%E6%B0%B4%E6%B2%B3?variant=zh-tw)
+- `zh-hant_2.txt`: [光合作用](https://zh.wikipedia.org/wiki/%E5%85%89%E5%90%88%E4%BD%9C%E7%94%A8?variant=zh-tw)
+- `zh-hant_3.txt`: [梁實秋](https://zh.wikipedia.org/wiki/%E6%A2%81%E5%AF%A6%E7%A7%8B?variant=zh-tw)
 
 ## Synthetic samples
 
