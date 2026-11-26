@@ -52,12 +52,11 @@ Done (in `CHANGELOG.md` `[Unreleased]`):
 - BOM-less `UTF-32LE` / `UTF-32BE` detection (omitting error-prone NUL-less `UTF-16`).
 - WHATWG multi-byte indexes and allocation-free `Shift_JIS`, `EUC-JP`, `EUC-KR`, `Big5`, `gb18030`/`GBK` and `ISO-2022-JP` decoders, matching encoding_rs step by step.
 - chardetng's CJK (`GBK`, `EUC-JP`, `EUC-KR`, `Shift_JIS`, `Big5`) and `ISO-2022-JP` candidates ported over those decoders, matching unmodified chardetng; `Fathom.detect` doesn't report CJK or `ISO-2022-JP` yet.
+- `Fathom.detect` reports `SHIFT_JIS`, `EUC-JP`, `ISO-2022-JP`, `EUC-KR`, `GBK` and `BIG5` (with `ja`/`ko`/`zh` language), accepting a character cut at the end of the sample; Japanese, Korean and Chinese (simplified and traditional) articles in `corpus/` and the CI gate.
 
 Planned:
 
-- Report the CJK encodings and `ISO-2022-JP` from `Fathom.detect`: add them to `Encoding::SUPPORTED` with per-platform `iconv` names, and check escape sequences before the ASCII fast path so 7-bit `ISO-2022-JP` isn't reported as `UTF-8`. Report their language from `Chardetng::Prober#language` directly, and measure how many short single-byte slices CJK candidates take first: e.g. upstream reads 64 bytes of Polish CP852 (`IBM852/pl_1.txt`) as `Big5`, and `IBM852` starts `RARE_HANDICAP` behind.
 - Fuzz and property specs over random and truncated byte slices to catch out-of-bounds bugs in multi-byte state machines.
-- CJK samples in `corpus/` and in the accuracy gate; `tools/heldout.cr` already contains CJK test files to measure against.
 
 ## `0.6.0` — Real-World Context & Targeted Optimizations
 

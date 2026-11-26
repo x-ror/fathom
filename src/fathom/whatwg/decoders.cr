@@ -83,6 +83,31 @@ module Fathom
       b < 0x80
     end
 
+    # Length of the prefix of *bytes* that ends on a character boundary in
+    # *encoding* (one of the multi-byte encodings here): a sequence cut by the end
+    # of *bytes* is excluded. Other encodings get `bytes.size`.
+    # :nodoc:
+    def self.complete_prefix_size(encoding : String, bytes : Bytes) : Int32
+      case encoding
+      when "SHIFT_JIS"   then complete_prefix_size(ShiftJisDecoder.new, bytes)
+      when "EUC-JP"      then complete_prefix_size(EucJpDecoder.new, bytes)
+      when "EUC-KR"      then complete_prefix_size(EucKrDecoder.new, bytes)
+      when "BIG5"        then complete_prefix_size(Big5Decoder.new, bytes)
+      when "GBK"         then complete_prefix_size(Gb18030Decoder.new, bytes)
+      when "ISO-2022-JP" then complete_prefix_size(Iso2022JpDecoder.new, bytes)
+      else                    bytes.size
+      end
+    end
+
+    private def self.complete_prefix_size(decoder, bytes : Bytes) : Int32
+      boundary = 0
+      bytes.each_with_index do |b, i|
+        step = decoder.feed(b)
+        boundary = i + 1 if step.written > 0 || step.malformed?
+      end
+      decoder.finish.malformed? ? boundary : bytes.size
+    end
+
     # Shift_JIS (windows-31j) decoder.
     # :nodoc:
     struct ShiftJisDecoder

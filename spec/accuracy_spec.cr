@@ -12,18 +12,24 @@ private GATE_SLICE_SIZES = [64, 256, nil]
 # first distinguishing quote byte, which are byte-identical to `WINDOWS-1257` and resolve to `WINDOWS-1257` by tie-break order.
 # Re-baselined for the chardetng-based detector: see CHANGELOG for the per-encoding trade-offs.
 private GATE_THRESHOLDS = {
+  "BIG5"           => {precision: 1.00, recall: 1.00},
+  "EUC-JP"         => {precision: 1.00, recall: 1.00},
+  "EUC-KR"         => {precision: 1.00, recall: 1.00},
+  "GBK"            => {precision: 1.00, recall: 1.00},
   "IBM437"         => {precision: 1.00, recall: 1.00},
   "IBM850"         => {precision: 1.00, recall: 0.77},
   "IBM852"         => {precision: 0.90, recall: 1.00},
   "IBM866"         => {precision: 1.00, recall: 1.00},
+  "ISO-2022-JP"    => {precision: 1.00, recall: 1.00},
+  "ISO-8859-13"    => {precision: 1.00, recall: 0.33},
   "ISO-8859-2"     => {precision: 1.00, recall: 0.83},
   "ISO-8859-5"     => {precision: 1.00, recall: 1.00},
   "ISO-8859-6"     => {precision: 1.00, recall: 1.00},
   "ISO-8859-7"     => {precision: 1.00, recall: 1.00},
-  "ISO-8859-13"    => {precision: 1.00, recall: 0.33},
   "KOI8-R"         => {precision: 0.75, recall: 1.00},
   "KOI8-U"         => {precision: 1.00, recall: 0.66},
   "MACINTOSH"      => {precision: 1.00, recall: 0.86},
+  "SHIFT_JIS"      => {precision: 1.00, recall: 1.00},
   "UTF-16BE"       => {precision: 1.00, recall: 1.00},
   "UTF-16LE"       => {precision: 1.00, recall: 1.00},
   "UTF-32BE"       => {precision: 1.00, recall: 1.00},
@@ -59,7 +65,8 @@ describe "Accuracy regression gate" do
           slice = limit ? bytes[0, Math.min(limit, bytes.size)] : bytes
           next if limit && limit >= bytes.size
           # A pure-ASCII slice of single-byte text is correctly reported as UTF-8; don't count it.
-          next if !expected.starts_with?("UTF") && slice.all? { |b| b < 0x80 }
+          # (Escape sequences make 7-bit ISO-2022-JP more than ASCII.)
+          next if !expected.starts_with?("UTF") && slice.all? { |b| b < 0x80 } && !slice.includes?(0x1B_u8)
           results << {expected: expected, actual: Fathom.detect(slice), size_limit: limit}
         end
       end

@@ -93,8 +93,8 @@ module Fathom
     # to a UTF-8 `String`. Returns `nil` when *bytes* looks like binary or an unknown encoding.
     #
     # An incomplete character at the very end of *bytes* (a cut multi-byte UTF-8
-    # sequence, an odd trailing UTF-16 byte, a lone high surrogate, or a partial
-    # UTF-32 unit) is dropped, matching what detection accepts.
+    # or CJK sequence, an odd trailing UTF-16 byte, a lone high surrogate, or a
+    # partial UTF-32 unit) is dropped, matching what detection accepts.
     #
     # The *invalid* option (`nil` or `:skip`) is passed through to `String.new` unchanged,
     # so invalid sequences elsewhere (e.g. in tolerated corrupt UTF-8) raise `ArgumentError`
@@ -141,7 +141,7 @@ module Fathom
              when "UTF-32LE", "UTF-32BE"
                size & ~3
              else
-               size
+               WHATWG.complete_prefix_size(encoding, payload)
              end
       payload[0, keep]
     end
@@ -161,7 +161,12 @@ module Fathom
       stats = ByteStats.analyze(sample)
 
       if stats.ascii?
-        yield Match.new("UTF-8", 1.0)
+        # 7-bit ISO-2022-JP looks like ASCII apart from its escape sequences.
+        if Chardetng.iso_2022_jp?(sample)
+          yield Match.new("ISO-2022-JP", 0.95, language: "ja")
+        else
+          yield Match.new("UTF-8", 1.0)
+        end
         return
       end
 
@@ -192,6 +197,9 @@ module Fathom
 
       @probers.each do |prober|
         prober.each_match(sample, stats) do |candidate|
+          # Slightly corrupted UTF-8 also decodes as plausible GBK/Big5/...
+          # ideographs; real CJK text never passes the tolerant UTF-8 check.
+          next if tolerant && Encoding::CJK.includes?(candidate.encoding)
           yield candidate if candidate.confidence >= @min_confidence
         end
       end

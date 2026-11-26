@@ -31,7 +31,16 @@ module Fathom
       "IBM852",
       "MACINTOSH",
       "X-MAC-CYRILLIC",
+      "SHIFT_JIS",
+      "EUC-JP",
+      "ISO-2022-JP",
+      "EUC-KR",
+      "BIG5",
+      "GBK",
     }
+
+    # Multi-byte CJK encodings (and 7-bit ISO-2022-JP) among `SUPPORTED`.
+    CJK = {"SHIFT_JIS", "EUC-JP", "ISO-2022-JP", "EUC-KR", "BIG5", "GBK"}
 
     # ISO/Windows pairs that differ only in `0x80..0x9F`.
     # Each pair is collapsed to the Windows superset because it decodes both.
@@ -125,6 +134,41 @@ module Fathom
       "MACCYRILLIC"         => "X-MAC-CYRILLIC",
       "X-MAC-UKRAINIAN"     => "X-MAC-CYRILLIC",
       "CP10007"             => "X-MAC-CYRILLIC",
+      "SHIFT-JIS"           => "SHIFT_JIS",
+      "SJIS"                => "SHIFT_JIS",
+      "MS_KANJI"            => "SHIFT_JIS",
+      "MS932"               => "SHIFT_JIS",
+      "CSSHIFTJIS"          => "SHIFT_JIS",
+      "WINDOWS-31J"         => "SHIFT_JIS",
+      "X-SJIS"              => "SHIFT_JIS",
+      "CP932"               => "SHIFT_JIS",
+      "CSEUCPKDFMTJAPANESE" => "EUC-JP",
+      "X-EUC-JP"            => "EUC-JP",
+      "CSISO2022JP"         => "ISO-2022-JP",
+      "CSEUCKR"             => "EUC-KR",
+      "CSKSC56011987"       => "EUC-KR",
+      "ISO-IR-149"          => "EUC-KR",
+      "KOREAN"              => "EUC-KR",
+      "KS_C_5601-1987"      => "EUC-KR",
+      "KS_C_5601-1989"      => "EUC-KR",
+      "KSC5601"             => "EUC-KR",
+      "KSC_5601"            => "EUC-KR",
+      "WINDOWS-949"         => "EUC-KR",
+      "CP949"               => "EUC-KR",
+      "BIG5-HKSCS"          => "BIG5",
+      "CN-BIG5"             => "BIG5",
+      "CSBIG5"              => "BIG5",
+      "X-X-BIG5"            => "BIG5",
+      "CHINESE"             => "GBK",
+      "CSGB2312"            => "GBK",
+      "CSISO58GB231280"     => "GBK",
+      "GB2312"              => "GBK",
+      "GB_2312"             => "GBK",
+      "GB_2312-80"          => "GBK",
+      "ISO-IR-58"           => "GBK",
+      "X-GBK"               => "GBK",
+      "CP936"               => "GBK",
+      "GB18030"             => "GBK", # the WHATWG gbk and gb18030 decoders are the same
     }.merge(ISO_WINDOWS_ALIASES)
 
     # Normalizes *label* to Fathom's canonical uppercase encoding name.
@@ -158,6 +202,11 @@ module Fathom
       when "IBM850"         then "CP850" # musl knows only "cp850"; the others accept both names
       when "IBM852"         then "CP852"
       when "X-MAC-CYRILLIC" then "MACCYRILLIC"
+        # WHATWG Shift_JIS, EUC-KR, Big5 and GBK are the Windows/HKSCS supersets.
+      when "SHIFT_JIS" then "CP932"
+      when "EUC-KR"    then "CP949"
+      when "BIG5"      then "BIG5-HKSCS"
+      when "GBK"       then "GB18030"
       when "MACINTOSH"
         {% if flag?(:win32) %}
           "MACROMAN"

@@ -73,16 +73,20 @@ module Fathom
           max = winner_score if winner_score > max
         else
           # Unsupported or non-scoring guess: fall back to the best supported candidate.
-          best_idx = 0
-          best = ptr[0][1]
-          i = 1
+          # A CJK encoding needs a positive score: with lenient EOF, a lone
+          # trailing lead byte ("abc\x90") would otherwise make GBK a free pick.
+          best_idx = -1
+          best = Int64::MIN
+          i = 0
           while i < count
-            if ptr[i][1] > best
-              best = ptr[i][1]
+            score = ptr[i][1]
+            if score > best && (score > 0 || !Encoding::CJK.includes?(ptr[i][0]))
+              best = score
               best_idx = i
             end
             i += 1
           end
+          return if best_idx < 0
 
           if best > 0
             winner = ptr[best_idx][0]
@@ -187,6 +191,9 @@ module Fathom
         when "WINDOWS-1255"               then return "he"
         when "WINDOWS-1256", "ISO-8859-6" then return "ar"
         when "WINDOWS-874"                then return "th"
+        when "SHIFT_JIS", "EUC-JP"        then return "ja"
+        when "EUC-KR"                     then return "ko"
+        when "GBK", "BIG5"                then return "zh"
         when "WINDOWS-1252", "IBM437", "IBM850", "MACINTOSH"
           return nil
         end

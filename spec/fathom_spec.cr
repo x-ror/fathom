@@ -363,6 +363,92 @@ describe Fathom do
     end
   end
 
+  describe "CJK and ISO-2022-JP" do
+    # Encoded ahead of time so the specs don't depend on the platform's iconv encoders.
+    sjis = "82B182EA82CD93FA967B8CEA82CC8365834C8358836782C582B78142".hexbytes # これは日本語のテキストです。
+    iso = "1B2442467C4B5C386C244E2546252D253925481B2842".hexbytes              # 日本語のテキスト
+
+    it "detects each CJK encoding with its language" do
+      {
+        {"SHIFT_JIS", "ja", sjis},
+        {"EUC-JP", "ja", "A4B3A4ECA4CFC6FCCBDCB8ECA4CEA5C6A5ADA5B9A5C8A4C7A4B9A1A3".hexbytes},
+        {"EUC-KR", "ko", "C0CCB0CDC0BA20C7D1B1B9BEEE20B9AEC0E5C0D4B4CFB4D92E".hexbytes},
+        {"GBK", "zh", "D5E2CAC7D2BBB8F6D6D0CEC4BEE4D7D3A1A3".hexbytes},
+        {"BIG5", "zh", "B36FAC4FA440ADD3A4A4A4E5A579A46CA143".hexbytes},
+      }.each do |encoding, language, bytes|
+        match = Fathom.match(bytes).should_not be_nil
+        {encoding, match.encoding, match.language}.should eq({encoding, encoding, language})
+      end
+    end
+
+    it "detects 7-bit ISO-2022-JP before treating input as ASCII" do
+      match = Fathom.match(iso).should_not be_nil
+      match.encoding.should eq "ISO-2022-JP"
+      match.language.should eq "ja"
+      Fathom.decode(iso).should eq "日本語のテキスト"
+    end
+
+    it "keeps ASCII with other escapes as UTF-8" do
+      Fathom.detect("\e[31mred\e[0m".to_slice).should eq "UTF-8"
+      Fathom.detect("abc\e".to_slice).should eq "UTF-8"
+    end
+
+    it "accepts a CJK character cut at the end and drops it when decoding" do
+      Fathom.detect(sjis[0, sjis.size - 1]).should eq "SHIFT_JIS"
+      Fathom.decode(sjis[0, sjis.size - 1]).should eq "これは日本語のテキストです"
+      Fathom.detect(iso[0, iso.size - 4]).should eq "ISO-2022-JP"
+      Fathom.decode(iso[0, iso.size - 4]).should eq "日本語のテキス"
+    end
+
+    it "doesn't report CJK without positive evidence" do
+      match = Fathom.match("abc\x90".to_slice).should_not be_nil
+      Fathom::Encoding::CJK.includes?(match.encoding).should be_false
+    end
+
+    it "keeps slightly corrupted UTF-8 CJK text as UTF-8" do
+      corrupt = "这是一个中文句子，这是一个中文句子，这是一个中文句子。".to_slice + Bytes[0xFF]
+      Fathom.detect(corrupt).should eq "UTF-8"
+    end
+
+    it "prefers an encoding that decodes the whole input over one left with a cut character" do
+      katakana = "CAB0C4DEB3AAB1CAB0C4DEB3AAB1CAB0C4DEB3AAB1CAB0C4DEB3AAB1CAB0C4DEB3AAB1".hexbytes # 35 bytes of half-width katakana
+      Fathom.detect(katakana).should eq "SHIFT_JIS"
+    end
+
+    it "accepts a CJK character cut by the sample size, from bytes and IO" do
+      long = "82B182EA82CD93FA967B8CEA82CC8365834C8358836782C582B7814282B182EA82CD93FA967B8CEA82CC8365834C8358836782C582B7814282B182EA82CD93FA967B8CEA82CC8365834C8358836782C582B7814282B182EA82CD93FA967B8CEA82CC8365834C8358836782C582B7814282B182EA82CD93FA967B8CEA82CC8365834C8358836782C582B7814282B182EA82CD93FA967B8CEA82CC8365834C8358836782C582B7814282B182EA82CD93FA967B8CEA82CC8365834C8358836782C582B7814282B182EA82CD93FA967B8CEA82CC8365834C8358836782C582B7814282B182EA82CD93FA967B8CEA82CC8365834C8358836782C582B7814282B182EA82CD93FA967B8CEA82CC8365834C8358836782C582B7814282B182EA82CD93FA967B8CEA82CC8365834C8358836782C582B7814282B182EA82CD93FA967B8CEA82CC8365834C8358836782C582B78142".hexbytes
+      detector = Fathom::Detector.new(sample_size: 101) # odd: cuts a two-byte character
+      detector.detect(long).should eq "SHIFT_JIS"
+      detector.detect(IO::Memory.new(long)).should eq "SHIFT_JIS"
+    end
+
+    it "finds where a cut EUC-JP (JIS X 0212) or four-byte gb18030 tail starts" do
+      euc = "A4B3A4EC8FA2AF".hexbytes # こ れ ˘ (JIS X 0212: 0x8F A2 AF)
+      Fathom::WHATWG.complete_prefix_size("EUC-JP", euc).should eq 7
+      Fathom::WHATWG.complete_prefix_size("EUC-JP", euc[0, 6]).should eq 4
+      Fathom::WHATWG.complete_prefix_size("EUC-JP", euc[0, 5]).should eq 4
+      gb = "D5E29439FC39".hexbytes # 这 😃
+      Fathom::WHATWG.complete_prefix_size("GBK", gb).should eq 6
+      {3, 4, 5}.each { |n| Fathom::WHATWG.complete_prefix_size("GBK", gb[0, n]).should eq 2 }
+    end
+
+    it "lists CJK candidates in detect_all" do
+      Fathom.detect_all(sjis).map(&.encoding).should contain "SHIFT_JIS"
+      Fathom.detect_all(iso).map(&.encoding).should eq ["ISO-2022-JP"]
+    end
+
+    it "maps WHATWG labels and iconv names" do
+      Fathom::Encoding.canonical_name("shift-jis").should eq "SHIFT_JIS"
+      Fathom::Encoding.canonical_name("windows-31j").should eq "SHIFT_JIS"
+      Fathom::Encoding.canonical_name("ks_c_5601-1987").should eq "EUC-KR"
+      Fathom::Encoding.canonical_name("gb2312").should eq "GBK"
+      Fathom::Encoding.canonical_name("gb18030").should eq "GBK"
+      Fathom::Encoding.canonical_name("big5-hkscs").should eq "BIG5"
+      Fathom::Encoding.iconv_name("SHIFT_JIS").should eq "CP932"
+      Fathom::Encoding.iconv_name("GBK").should eq "GB18030"
+    end
+  end
+
   describe "edge cases" do
     it "detects WINDOWS-1252 when the only high bytes are symbols" do
       match = Fathom.match("100 €".encode("WINDOWS-1252")).should_not be_nil
