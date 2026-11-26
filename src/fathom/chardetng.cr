@@ -989,14 +989,25 @@ module Fathom
       end
 
       # CJK encodings and scores in upstream candidate order.
+      # A candidate whose last character was cut by the end of the input (only
+      # possible with `extended`) yields to one that decodes the whole input with
+      # a positive score: 35 bytes of half-width katakana are valid Shift_JIS but
+      # read as Big5 pairs with a dangling lead byte.
       private def cjk_scores : StaticArray({String, Int64?}, 5)
+        complete = {@gbk, @euc_jp, @euc_kr, @shift_jis, @big5}.any? do |c|
+          (score = c.guess_score) && score > 0 && !c.cut_tail?
+        end
         StaticArray[
-          {@gbk.encoding, @gbk.guess_score},
-          {@euc_jp.encoding, @euc_jp.guess_score},
-          {@euc_kr.encoding, @euc_kr.guess_score},
-          {@shift_jis.encoding, @shift_jis.guess_score},
-          {@big5.encoding, @big5.guess_score},
+          cjk_score(@gbk, complete),
+          cjk_score(@euc_jp, complete),
+          cjk_score(@euc_kr, complete),
+          cjk_score(@shift_jis, complete),
+          cjk_score(@big5, complete),
         ]
+      end
+
+      private def cjk_score(candidate, complete : Bool) : {String, Int64?}
+        {candidate.encoding, complete && candidate.cut_tail? ? nil : candidate.guess_score}
       end
 
       # Whether every byte fed so far is defined in windows-1255.

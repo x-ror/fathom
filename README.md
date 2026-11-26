@@ -31,7 +31,7 @@ File.open("data.txt") do |file|
 end
 ```
 
-`Fathom.decode` strips any leading BOM, drops an incomplete character at the very end of the input (a cut multi-byte UTF-8 sequence, an odd trailing UTF-16 byte, or a lone high surrogate — matching what detection accepts), and passes `invalid:` (`nil` or `:skip`) unchanged to `String.new`.
+`Fathom.decode` strips any leading BOM, drops an incomplete character at the very end of the input (a cut multi-byte UTF-8 or CJK sequence, an odd trailing UTF-16 byte, a partial UTF-32 unit, or a lone high surrogate — matching what detection accepts), and passes `invalid:` (`nil` or `:skip`) unchanged to `String.new`.
 
 ### Confidence scores, BOM, language & `iconv` names
 
@@ -143,7 +143,7 @@ crystal run --release bench/benchmark.cr             # run throughput benchmark
 
 ## Acknowledgements
 
-Single-byte detection is a Crystal port of [chardetng](https://github.com/hsivonen/chardetng) 1.0.0 by Henri Sivonen (copyright Mozilla Foundation), extended with DOS, Mac and `KOI8-R` encodings. chardetng's code is used under the MIT license (see [`LICENSE-chardetng`](LICENSE-chardetng)); its data tables are dedicated to the public domain (CC0).
+Single-byte and CJK detection is a Crystal port of [chardetng](https://github.com/hsivonen/chardetng) 1.0.0 by Henri Sivonen (copyright Mozilla Foundation), extended with DOS, Mac and `KOI8-R` encodings. chardetng's code is used under the MIT license (see [`LICENSE-chardetng`](LICENSE-chardetng)); its data tables are dedicated to the public domain (CC0).
 
 The multi-byte code point indexes in `src/fathom/whatwg/` are generated from the [WHATWG Encoding Standard](https://encoding.spec.whatwg.org/) (copyright WHATWG) and are licensed under the BSD 3-Clause License (see [`LICENSE-whatwg`](LICENSE-whatwg)).
 
@@ -151,4 +151,4 @@ The multi-byte decoders in `src/fathom/whatwg/decoders.cr` reproduce the behavio
 
 ## License
 
-MIT (see [`LICENSE`](LICENSE)). The chardetng port in `src/fathom/chardetng.cr` is also covered by chardetng's MIT license (see [`LICENSE-chardetng`](LICENSE-chardetng)). The WHATWG indexes in `src/fathom/whatwg/` are under the BSD 3-Clause License (see [`LICENSE-whatwg`](LICENSE-whatwg)). The decoders in `src/fathom/whatwg/decoders.cr` are also covered by encoding_rs's MIT license (see [`LICENSE-encoding_rs`](LICENSE-encoding_rs)).
+MIT (see [`LICENSE`](LICENSE)). The chardetng port in `src/fathom/chardetng.cr` and `src/fathom/chardetng/` is also covered by chardetng's MIT license (see [`LICENSE-chardetng`](LICENSE-chardetng)). The WHATWG indexes in `src/fathom/whatwg/` are under the BSD 3-Clause License (see [`LICENSE-whatwg`](LICENSE-whatwg)). The decoders in `src/fathom/whatwg/decoders.cr` are also covered by encoding_rs's MIT license (see [`LICENSE-encoding_rs`](LICENSE-encoding_rs)).

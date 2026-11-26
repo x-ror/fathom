@@ -57,7 +57,6 @@ Done (in `CHANGELOG.md` `[Unreleased]`):
 Planned:
 
 - Fuzz and property specs over random and truncated byte slices to catch out-of-bounds bugs in multi-byte state machines.
-- CJK samples in `corpus/` and in the accuracy gate; `tools/heldout.cr` already contains CJK test files to measure against.
 
 ## `0.6.0` — Real-World Context & Targeted Optimizations
 

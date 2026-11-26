@@ -134,6 +134,7 @@ module Fathom
       "MACCYRILLIC"         => "X-MAC-CYRILLIC",
       "X-MAC-UKRAINIAN"     => "X-MAC-CYRILLIC",
       "CP10007"             => "X-MAC-CYRILLIC",
+      "SHIFT-JIS"           => "SHIFT_JIS",
       "SJIS"                => "SHIFT_JIS",
       "MS_KANJI"            => "SHIFT_JIS",
       "MS932"               => "SHIFT_JIS",

@@ -100,8 +100,9 @@ module Fathom
 
       # Fathom extension: don't treat a character cut by the end of the input as
       # an error (the input may be a prefix sample; `Fathom.decode` drops such a
-      # tail). Upstream disqualifies the candidate.
+      # tail), but remember it in `cut_tail?`. Upstream disqualifies the candidate.
       property? lenient_eof = false
+      getter? cut_tail = false
 
       def guess_score : Int64?
         @score
@@ -119,6 +120,7 @@ module Fathom
     # counts, while ASCII ending in a lone ESC doesn't.
     # :nodoc:
     def self.iso_2022_jp?(bytes : Bytes) : Bool
+      return false unless bytes.includes?(0x1B_u8) # keeps the ASCII fast path fast
       bytes = bytes[0, WHATWG.complete_prefix_size("ISO-2022-JP", bytes)]
       return false unless bytes.includes?(0x1B_u8)
       decoder = WHATWG::Iso2022JpDecoder.new
@@ -273,7 +275,10 @@ module Fathom
           end
           @prev_byte = b
         end
-        return nil if last && !lenient_eof? && @decoder.finish.malformed?
+        if last && @decoder.finish.malformed?
+          return nil unless lenient_eof?
+          @cut_tail = true
+        end
         score
       end
     end
@@ -395,7 +400,10 @@ module Fathom
           end
           @prev_byte = b
         end
-        return nil if last && !lenient_eof? && @decoder.finish.malformed?
+        if last && @decoder.finish.malformed?
+          return nil unless lenient_eof?
+          @cut_tail = true
+        end
         score
       end
     end
@@ -495,7 +503,10 @@ module Fathom
           @prev_prev_byte = @prev_byte
           @prev_byte = b
         end
-        return nil if last && !lenient_eof? && @decoder.finish.malformed?
+        if last && @decoder.finish.malformed?
+          return nil unless lenient_eof?
+          @cut_tail = true
+        end
         score
       end
     end
@@ -603,7 +614,10 @@ module Fathom
           end
           @prev_byte = b
         end
-        return nil if last && !lenient_eof? && @decoder.finish.malformed?
+        if last && @decoder.finish.malformed?
+          return nil unless lenient_eof?
+          @cut_tail = true
+        end
         score
       end
     end
@@ -734,7 +748,10 @@ module Fathom
           @prev_was_euc_range = in_euc_range
           @prev_byte = b
         end
-        return nil if last && !lenient_eof? && @decoder.finish.malformed?
+        if last && @decoder.finish.malformed?
+          return nil unless lenient_eof?
+          @cut_tail = true
+        end
         score
       end
     end

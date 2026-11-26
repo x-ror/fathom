@@ -253,7 +253,7 @@ module FathomCLI
         sizes.each do |limit|
           next if limit && limit >= bytes.size
           slice = limit ? bytes[0, limit] : bytes
-          # A pure-ASCII slice of single-byte text is correctly reported as UTF-8; don't count it.
+          # A pure-ASCII slice (without escape sequences) of legacy-encoded text is correctly reported as UTF-8; don't count it.
           next if !expected.starts_with?("UTF") && slice.all? { |b| b < 0x80 } && !slice.includes?(0x1B_u8)
           samples << {expected, limit ? "#{limit}B" : "full", slice}
         end
@@ -290,7 +290,7 @@ module FathomCLI
     sb_note = if !sb.empty? && sb.size < results.size
                 sb_ok = sb.count { |r| r.expected == r.actual }
                 sb_acc = (sb_ok.to_f64 / sb.size) * 100.0
-                " (single-byte: #{sb_ok}/#{sb.size} = #{sb_acc.round(2)}%)"
+                " (legacy: #{sb_ok}/#{sb.size} = #{sb_acc.round(2)}%)"
               else
                 ""
               end
@@ -307,7 +307,7 @@ module FathomCLI
     if !sb.empty? && sb.size < results.size
       sb_correct = sb.count { |r| r.expected == r.actual }
       sb_acc = (sb_correct.to_f64 / sb.size) * 100.0
-      puts "Single-byte only: #{sb_correct}/#{sb.size} = #{sb_acc.round(2)}%"
+      puts "Legacy (non-UTF) only: #{sb_correct}/#{sb.size} = #{sb_acc.round(2)}%"
     end
     puts
     puts "| Encoding | Support | Precision | Recall | F1 |"

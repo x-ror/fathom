@@ -400,7 +400,46 @@ describe Fathom do
       Fathom.decode(iso[0, iso.size - 4]).should eq "日本語のテキス"
     end
 
+    it "doesn't report CJK without positive evidence" do
+      match = Fathom.match("abc\x90".to_slice).should_not be_nil
+      Fathom::Encoding::CJK.includes?(match.encoding).should be_false
+      Fathom.decode("abc\x90".to_slice, invalid: :skip).try(&.size).should eq 4 # the byte isn't dropped
+    end
+
+    it "keeps slightly corrupted UTF-8 CJK text as UTF-8" do
+      corrupt = "这是一个中文句子，这是一个中文句子，这是一个中文句子。".to_slice + Bytes[0xFF]
+      Fathom.detect(corrupt).should eq "UTF-8"
+    end
+
+    it "prefers an encoding that decodes the whole input over one left with a cut character" do
+      katakana = "CAB0C4DEB3AAB1CAB0C4DEB3AAB1CAB0C4DEB3AAB1CAB0C4DEB3AAB1CAB0C4DEB3AAB1".hexbytes # 35 bytes of half-width katakana
+      Fathom.detect(katakana).should eq "SHIFT_JIS"
+    end
+
+    it "accepts a CJK character cut by the sample size, from bytes and IO" do
+      long = "82B182EA82CD93FA967B8CEA82CC8365834C8358836782C582B7814282B182EA82CD93FA967B8CEA82CC8365834C8358836782C582B7814282B182EA82CD93FA967B8CEA82CC8365834C8358836782C582B7814282B182EA82CD93FA967B8CEA82CC8365834C8358836782C582B7814282B182EA82CD93FA967B8CEA82CC8365834C8358836782C582B7814282B182EA82CD93FA967B8CEA82CC8365834C8358836782C582B7814282B182EA82CD93FA967B8CEA82CC8365834C8358836782C582B7814282B182EA82CD93FA967B8CEA82CC8365834C8358836782C582B7814282B182EA82CD93FA967B8CEA82CC8365834C8358836782C582B7814282B182EA82CD93FA967B8CEA82CC8365834C8358836782C582B7814282B182EA82CD93FA967B8CEA82CC8365834C8358836782C582B7814282B182EA82CD93FA967B8CEA82CC8365834C8358836782C582B78142".hexbytes
+      detector = Fathom::Detector.new(sample_size: 101) # odd: cuts a two-byte character
+      detector.detect(long).should eq "SHIFT_JIS"
+      detector.detect(IO::Memory.new(long)).should eq "SHIFT_JIS"
+    end
+
+    it "finds where a cut EUC-JP (JIS X 0212) or four-byte gb18030 tail starts" do
+      euc = "A4B3A4EC8FA2AF".hexbytes # こ れ ˘ (JIS X 0212: 0x8F A2 AF)
+      Fathom::WHATWG.complete_prefix_size("EUC-JP", euc).should eq 7
+      Fathom::WHATWG.complete_prefix_size("EUC-JP", euc[0, 6]).should eq 4
+      Fathom::WHATWG.complete_prefix_size("EUC-JP", euc[0, 5]).should eq 4
+      gb = "D5E29439FC39".hexbytes # 这 😃
+      Fathom::WHATWG.complete_prefix_size("GBK", gb).should eq 6
+      {3, 4, 5}.each { |n| Fathom::WHATWG.complete_prefix_size("GBK", gb[0, n]).should eq 2 }
+    end
+
+    it "lists CJK candidates in detect_all" do
+      Fathom.detect_all(sjis).map(&.encoding).should contain "SHIFT_JIS"
+      Fathom.detect_all(iso).map(&.encoding).should eq ["ISO-2022-JP"]
+    end
+
     it "maps WHATWG labels and iconv names" do
+      Fathom::Encoding.canonical_name("shift-jis").should eq "SHIFT_JIS"
       Fathom::Encoding.canonical_name("windows-31j").should eq "SHIFT_JIS"
       Fathom::Encoding.canonical_name("ks_c_5601-1987").should eq "EUC-KR"
       Fathom::Encoding.canonical_name("gb2312").should eq "GBK"
