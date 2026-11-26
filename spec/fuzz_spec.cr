@@ -7,8 +7,11 @@ require "./spec_helper"
 private FUZZ_SEED       = (ENV["FUZZ_SEED"]? || "1").to_u64
 private FUZZ_ITERATIONS = (ENV["FUZZ_ITERATIONS"]? || "1500").to_i
 private MULTI_BYTE      = {"SHIFT_JIS", "EUC-JP", "EUC-KR", "BIG5", "GBK", "ISO-2022-JP"}
-private FUZZ_CORPUS     = Dir.glob(File.expand_path("fixtures/corpus/*/*", __DIR__)).sort.map do |path|
-  {File.basename(File.dirname(path)), File.open(path, "rb", &.getb_to_end)}
+private CORPUS_ROOT     = File.expand_path("fixtures/corpus", __DIR__)
+# Dir.children, not Dir.glob: glob patterns don't match Windows backslash paths.
+private FUZZ_CORPUS = Dir.children(CORPUS_ROOT).sort.flat_map do |encoding|
+  dir = File.join(CORPUS_ROOT, encoding)
+  Dir.children(dir).sort.map { |file| {encoding, File.open(File.join(dir, file), "rb", &.getb_to_end)} }
 end
 
 # Random input shaped to reach the CJK decoders' states: uniform bytes, high
@@ -106,6 +109,7 @@ describe "Fuzzing" do
   end
 
   it "decodes every prefix of CJK text detected as its encoding" do
+    FUZZ_CORPUS.count { |(encoding, _)| MULTI_BYTE.includes?(encoding) }.should be > 0
     FUZZ_CORPUS.each do |(encoding, source)|
       next unless MULTI_BYTE.includes?(encoding)
       text = source[0, Math.min(source.size, 300)]
